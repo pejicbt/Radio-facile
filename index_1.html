@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Messages Radio — BSPP</title>
+<style>
+  :root {
+    --bg: #0b0e12;
+    --surface-1: #12161c;
+    --surface-2: #1a2029;
+    --border: #2a323d;
+    --border-strong: #3a4552;
+    --border-accent: #d9a441;
+    --accent: #d9a441;
+    --on-accent: #14100a;
+    --text-primary: #f3f5f7;
+    --text-secondary: #a7b0bc;
+    --text-muted: #6b7480;
+    --radius: 14px;
+    --danger: #c14f4f;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  #app-root {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    padding: 1rem 1rem 3rem;
+  }
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.5rem 0 1rem;
+  }
+  .header .brand {
+    font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--text-muted); font-weight: 600;
+  }
+  .header .brand span { color: var(--accent); }
+  .icon-btn {
+    width: 36px; height: 36px; border-radius: 10px;
+    border: 0.5px solid var(--border); background: var(--surface-2);
+    color: var(--text-secondary); font-size: 16px;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .crumb { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; min-height: 16px; }
+  .progress-track {
+    height: 3px; background: var(--border); border-radius: 2px;
+    margin-bottom: 18px; overflow: hidden;
+  }
+  .progress-fill { height: 100%; background: var(--accent); transition: width .2s; }
+  h1.page-title { font-size: 20px; font-weight: 600; margin: 0 0 16px; }
+  .card {
+    text-align: left; width: 100%; padding: 14px; border-radius: var(--radius);
+    font-size: 15px; font-weight: 500; cursor: pointer;
+    border: 0.5px solid var(--border); background: var(--surface-2);
+    color: var(--text-primary); margin-bottom: 8px; display: block;
+    transition: background .12s, border-color .12s, color .12s;
+  }
+  .card:hover { border-color: var(--border-strong); }
+  .card.active {
+    background: var(--accent); border-color: var(--accent); color: var(--on-accent);
+  }
+  .card-half { flex: 1; }
+  .row { display: flex; gap: 8px; }
+  .row.wrap { flex-wrap: wrap; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  label.field-label {
+    font-size: 13px; color: var(--text-secondary); display: block; margin-bottom: 4px;
+  }
+  input[type="text"] {
+    width: 100%; padding: 12px 14px; border-radius: 10px;
+    border: 0.5px solid var(--border); background: var(--surface-1);
+    color: var(--text-primary); font-size: 15px; margin-bottom: 12px;
+  }
+  input[type="text"]:focus { outline: none; border-color: var(--accent); }
+  .note { font-size: 12px; color: var(--text-muted); margin: -4px 0 12px; }
+  .nav-buttons { display: flex; gap: 8px; margin-top: 20px; }
+  .btn-primary {
+    flex: 1; padding: 13px; border-radius: var(--radius); border: none;
+    background: var(--accent); color: var(--on-accent); font-size: 15px; font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-secondary {
+    flex: 1; padding: 13px; border-radius: var(--radius);
+    border: 0.5px solid var(--border-strong); background: var(--surface-2);
+    color: var(--text-primary); font-size: 15px; font-weight: 500; cursor: pointer;
+  }
+  .btn-ghost {
+    width: 100%; padding: 12px; border-radius: var(--radius);
+    border: 0.5px solid var(--border); background: transparent;
+    color: var(--text-secondary); font-size: 13px; cursor: pointer; margin-top: 8px;
+  }
+  .btn-dashed {
+    width: 100%; padding: 10px; border-radius: var(--radius);
+    border: 0.5px dashed var(--border-strong); background: transparent;
+    color: var(--text-secondary); font-size: 13px; cursor: pointer; margin-bottom: 8px;
+  }
+  .victime-block {
+    border: 0.5px solid var(--border); border-radius: var(--radius);
+    padding: 12px; margin-bottom: 12px;
+  }
+  .victime-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+  }
+  .victime-header span { font-size: 13px; font-weight: 600; }
+  .remove-link {
+    font-size: 12px; color: var(--text-muted); background: none; border: none;
+    cursor: pointer; padding: 0;
+  }
+  .vehicule-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; border: 0.5px solid var(--border); border-radius: var(--radius);
+    margin-bottom: 8px;
+  }
+  .vehicule-row .label { font-size: 14px; font-weight: 500; }
+  .counter { display: flex; align-items: center; gap: 10px; }
+  .counter button {
+    width: 30px; height: 30px; border-radius: 8px; border: 0.5px solid var(--border);
+    background: var(--surface-1); color: var(--text-primary); font-size: 16px; cursor: pointer;
+  }
+  .counter .count { font-size: 14px; font-weight: 600; min-width: 16px; text-align: center; }
+  .message-box-wrap { position: relative; margin-bottom: 16px; }
+  .message-box {
+    background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--radius);
+    padding: 14px 44px 14px 14px; font-size: 15px; line-height: 1.6; white-space: pre-wrap;
+  }
+  .edit-btn {
+    position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; border-radius: 8px;
+    border: 0.5px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 14px;
+  }
+  .badge { font-size: 12px; color: var(--text-muted); margin: -10px 0 16px; }
+  textarea {
+    width: 100%; padding: 14px; border-radius: var(--radius); border: 0.5px solid var(--border-accent);
+    background: var(--surface-2); color: var(--text-primary); font-size: 15px; line-height: 1.6;
+    font-family: inherit; margin-bottom: 8px; resize: vertical; overflow: hidden; box-sizing: border-box;
+  }
+  .radio-view {
+    min-height: 70vh; background: var(--bg); border-radius: var(--radius);
+    padding: 1.5rem 0.5rem; display: flex; flex-direction: column; justify-content: center;
+  }
+  .radio-text { font-size: 26px; font-weight: 600; line-height: 1.5; }
+  .home-hero { margin: 12px 0 24px; }
+  .home-hero .kicker { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+  .home-hero h1 { font-size: 26px; margin: 0; font-weight: 700; }
+  .history-item {
+    border: 0.5px solid var(--border); border-radius: var(--radius); padding: 12px; margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .history-item .time { font-size: 12px; color: var(--accent); font-weight: 600; margin-bottom: 4px; }
+  .history-item .snippet { font-size: 13px; color: var(--text-secondary); line-height: 1.4; }
+  .empty-state { font-size: 13px; color: var(--text-muted); text-align: center; padding: 32px 0; }
+  .disabled-note { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+</style>
+</head>
+<body>
+<div id="app-root"></div>
+
+<script>
+/* ---------- Utilitaires partagés ---------- */
+function el(tag, attrs, children) {
+  const e = document.createElement(tag);
+  if (attrs) Object.entries(attrs).forEach(([k, v]) => {
+    if (k === "class") e.className = v;
+    else if (k === "text") e.textContent = v;
+    else if (k.startsWith("on") && typeof v === "function") e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  });
+  (children || []).forEach(c => c && e.appendChild(c));
+  return e;
+}
+function labeledInput(labelText, placeholder, value, onInput, numeric) {
+  const wrap = el("div", {});
+  wrap.appendChild(el("label", { class: "field-label", text: labelText }));
+  const input = el("input", { type: "text", placeholder: placeholder });
+  if (numeric) input.inputMode = "numeric";
+  input.value = value || "";
+  input.addEventListener("input", e => onInput(numeric ? e.target.value.replace(/[^0-9]/g, "") : e.target.value));
+  if (numeric) input.addEventListener("input", e => { e.target.value = e.target.value.replace(/[^0-9]/g,""); });
+  wrap.appendChild(input);
+  return wrap;
+}
+function autoResize(ta) { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; }
+function saveToHistory(motif, text) {
+  const now = new Date();
+  const entry = {
+    id: Date.now(),
+    motif: motif,
+    text: text,
+    timestamp: now.toISOString(),
+    display: now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+  };
+  const list = JSON.parse(localStorage.getItem("messagesHistorique") || "[]");
+  list.unshift(entry);
+  localStorage.setItem("messagesHistorique", JSON.stringify(list));
+  return entry;
+}
+
+const specialNouns = { enfant:"enfant", nourrisson:"nourrisson", militaireCorps:"sapeur-pompier de Paris", militaire:"militaire", policier:"policier" };
+function victimeNoun(v) {
+  if (v.statut !== "aucun" && specialNouns[v.statut]) {
+    let txt = "un " + specialNouns[v.statut];
+    if (v.service !== null && ["militaireCorps","militaire","policier"].includes(v.statut)) {
+      txt += v.service ? " en position de service" : " en position de repos";
+    }
+    return txt;
+  }
+  return v.sexe === "femme" ? "une femme" : "un homme";
+}
+
+/* ============================================================
+   ROUTER
+   ============================================================ */
+const Router = { view: "home" };
+function goTo(view) { Router.view = view; renderApp(); }
+
+function renderApp() {
+  const root = document.getElementById("app-root");
+  root.innerHTML = "";
+  root.appendChild(el("div", { class: "header" }, [
+    el("div", { class: "brand", text: "" }, [
+      document.createTextNode("Messages Radio "),
+      el("span", { text: "BSPP" })
+    ]),
+    Router.view !== "home" ? el("button", { class: "icon-btn", text: "⌂", onclick: () => goTo("home") }) : el("div", {})
+  ]));
+
+  if (Router.view === "home") renderHome(root);
+  else if (Router.view === "sav") renderSav(root);
+  else if (Router.view === "history") renderHistory(root);
+  else if (Router.view === "acr") ACR.render(root);
+  else if (Router.view === "avp") AVP.render(root);
+}
+
+function renderHome(root) {
+  root.appendChild(el("div", { class: "home-hero" }, [
+    el("div", { class: "kicker", text: "Aide à la rédaction" }),
+    el("h1", { text: "Messages radio" })
+  ]));
+  root.appendChild(el("button", { class: "card", text: "Secours à victime", onclick: () => goTo("sav") }));
+  const inc = el("button", { class: "card", text: "Incendie", onclick: () => {} });
+  inc.style.opacity = "0.5"; inc.disabled = true;
+  root.appendChild(inc);
+  root.appendChild(el("div", { class: "disabled-note", text: "Axe Incendie — à venir" }));
+  root.appendChild(el("button", { class: "btn-ghost", text: "Historique des messages", onclick: () => goTo("history") }));
+}
+
+function renderSav(root) {
+  root.appendChild(el("div", { class: "crumb", text: "Secours à victime" }));
+  root.appendChild(el("h1", { class: "page-title", text: "Choisir le motif" }));
+  root.appendChild(el("button", { class: "card", text: "Arrêt cardio-respiratoire (ACR)", onclick: () => { ACR.reset(); goTo("acr"); } }));
+  root.appendChild(el("button", { class: "card", text: "Accident voie publique (AVP)", onclick: () => { AVP.reset(); goTo("avp"); } }));
+}
+
+function renderHistory(root) {
+  root.appendChild(el("div", { class: "crumb", text: "Historique" }));
+  root.appendChild(el("h1", { class: "page-title", text: "Messages enregistrés" }));
+  const list = JSON.parse(localStorage.getItem("messagesHistorique") || "[]");
+  if (list.length === 0) {
+    root.appendChild(el("div", { class: "empty-state", text: "Aucun message enregistré pour l'instant." }));
+    return;
+  }
+  list.forEach(item => {
+    const card = el("div", { class: "history-item" }, [
+      el("div", { class: "time", text: item.display + " — " + item.motif }),
+      el("div", { class: "snippet", text: item.text.length > 140 ? item.text.slice(0, 140) + "…" : item.text })
+    ]);
+    card.addEventListener("click", () => {
+      Router.view = "radio-replay";
+      renderRadioReplay(item.text);
+    });
+    root.appendChild(card);
+  });
+}
+
+function renderRadioReplay(text) {
+  const root = document.getElementById("app-root");
+  root.innerHTML = "";
+  const view = el("div", { class: "radio-view" }, [
+    el("div", { class: "radio-text", text: text }),
+    el("button", { class: "btn-secondary", text: "Fermer", onclick: () => goTo("history") })
+  ]);
+  view.querySelector("button").style.marginTop = "24px";
+  root.appendChild(view);
+}
+
+function showRadioView(getText, backView) {
+  const root = document.getElementById("app-root");
+  root.innerHTML = "";
+  const view = el("div", { class: "radio-view" }, [
+    el("div", { class: "radio-text", text: getText() }),
+    el("button", { class: "btn-secondary", text: "Fermer", onclick: () => { Router.view = backView; renderApp(); } })
+  ]);
+  view.querySelector("button").style.marginTop = "24px";
+  root.appendChild(view);
+}
+
+/* ============================================================
+   MODULE ACR
+   ============================================================ */
+const ACR = (function () {
+  let state, step, cloture;
+
+  function reset() {
+    state = {
+      contexte: null, chuteMetres: "", demande: null,
+      moyens: [
+        { id: "eps", label: "Engin de prompt secours", checked: false },
+        { id: "grimp", label: "GRIMP", checked: false },
+        { id: "medical", label: "Groupe médical", checked: false },
+        { id: "ep", label: "Engin pompe", checked: false },
+        { id: "vsav", label: "VSAV", checked: false },
+        { id: "mea", label: "Moyen élévateur aérien", checked: false },
+        { id: "brisevue", label: "Écran brise-vue", checked: false },
+        { id: "police", label: "Police", checked: false }
+      ],
+      adresse: "", commune: "", paris: false,
+      typeLieu: null, rdc: false, etageNum: "",
+      victimes: [ { sexe: null, statut: "aucun", service: null } ],
+      eqType: null, hopital: "", eqChoix: null,
+      saved: false, editing: false, editedMessage: null,
+      clEqChoix: null, clEqHeure: "", clIssue: null
+    };
+    step = 0; cloture = false;
+  }
+  reset();
+
+  const contextes = [
+    { id: "simple", label: "ACR simple", moyens: [] },
+    { id: "pendaison", label: "Suite à pendaison", moyens: ["eps","police"] },
+    { id: "chute", label: "Chute / hauteur", moyens: ["eps"] },
+    { id: "noyade", label: "Suite à noyade", moyens: ["eps"] },
+    { id: "rixe", label: "Suite à rixe", moyens: ["eps","police"] }
+  ];
+
+  function contexteSuffix() {
+    switch (state.contexte) {
+      case "pendaison": return "consécutif à une pendaison";
+      case "chute": return state.chuteMetres ? ("consécutif à une chute de " + state.chuteMetres + " mètres environ") : "consécutif à une chute avec notion de hauteur";
+      case "noyade": return "consécutif à une noyade";
+      case "rixe": return "suite à une rixe";
+      default: return "";
+    }
+  }
+  function ordinalEtage(n) { n = parseInt(n, 10); if (isNaN(n)) return ""; return n === 1 ? "1er étage" : n + "e étage"; }
+
+  function generateMessage() {
+    const moyensLabels = state.moyens.filter(m => m.checked).map(m => m.label.toLowerCase());
+    let demandePart = "";
+    if (state.demande === true && moyensLabels.length > 0) demandePart = "Je demande " + moyensLabels.join(", ") + ", ";
+
+    let lieuPart = state.adresse || "[adresse]";
+    if (!state.paris && state.commune) lieuPart += " à " + state.commune;
+    if (state.typeLieu === "vp") lieuPart += ", voie publique";
+    else if (state.typeLieu === "lp") {
+      if (state.rdc) lieuPart += ", rez-de-chaussée";
+      else if (state.etageNum) lieuPart += ", " + ordinalEtage(state.etageNum);
+    }
+
+    const suffix = contexteSuffix() ? " " + contexteSuffix() : "";
+    let victimePart;
+    if (state.victimes.length === 1) {
+      victimePart = "secours à " + victimeNoun(state.victimes[0]) + " en arrêt cardio-respiratoire" + suffix + ".";
+    } else {
+      const nouns = state.victimes.map(v => victimeNoun(v));
+      victimePart = "secours à " + state.victimes.length + " personnes en arrêt cardio-respiratoire" + suffix + ". Dénombrement terrain provisoire : " + state.victimes.length + " urgences absolues dont " + nouns.join(", ") + ".";
+    }
+
+    let eqPart = "";
+    if (state.eqType === "civ") {
+      eqPart = state.eqChoix === "presente" ? " Équipe médicale " + (state.hopital || "[hôpital]") + " présentée sur les lieux." : state.eqChoix === "attente" ? " Attendons équipe médicale." : "";
+    } else if (state.eqType === "ar" && state.eqChoix === "attente") {
+      eqPart = " Attendons équipe médicale.";
+    }
+    return demandePart + lieuPart + ", " + victimePart + eqPart;
+  }
+  function currentMessage() { return state.editedMessage !== null ? state.editedMessage : generateMessage(); }
+
+  function generateClotureMessage() {
+    let eqPart = "";
+    if (state.eqType === "civ" && state.clEqChoix) {
+      eqPart = state.clEqChoix === "presente"
+        ? "Équipe médicale " + (state.hopital || "[hôpital]") + " présentée" + (state.clEqHeure ? " à " + state.clEqHeure : "") + ". "
+        : "Équipe médicale " + (state.hopital || "[hôpital]") + " se présente. ";
+    }
+    if (state.clIssue === "ua") {
+      const mode = state.eqType === "civ" ? " " + (state.hopital || "[hôpital]") : "";
+      const heureTxt = state.eqType === "civ" && state.clEqHeure && state.clEqChoix === "presente" ? " présentée à " + state.clEqHeure : "";
+      return eqPart + "Victime urgence absolue évacuée par équipe médicale" + mode + heureTxt + ".";
+    } else if (state.clIssue === "dcd") {
+      return "Victime décédée laissée à disposition de la police.";
+    }
+    return eqPart;
+  }
+
+  function totalSteps() { return 5; }
+
+  function navButtons(container, canNext, onNextExtra) {
+    const nav = el("div", { class: "nav-buttons" });
+    if (step > 0 && step < totalSteps()) {
+      nav.appendChild(el("button", { class: "btn-secondary", text: "Précédent", onclick: () => { step--; render(document.getElementById("app-root")); } }));
+    }
+    if (step < totalSteps()) {
+      const next = el("button", { class: "btn-primary", text: step === totalSteps() - 1 ? "Générer le message" : "Suivant" });
+      next.disabled = !canNext;
+      next.addEventListener("click", () => { if (canNext) { step++; render(document.getElementById("app-root")); } });
+      nav.appendChild(next);
+    }
+    container.appendChild(nav);
+  }
+
+  function renderVictimeBlock(container, index) {
+    const v = state.victimes[index];
+    const wrap = el("div", { class: "victime-block" });
+    const hdr = el("div", { class: "victime-header" }, [ el("span", { text: "Victime " + (index + 1) }) ]);
+    if (index > 0) {
+      hdr.appendChild(el("button", { class: "remove-link", text: "Retirer", onclick: () => { state.victimes.splice(index, 1); state.editedMessage = null; render(document.getElementById("app-root")); } }));
+    }
+    wrap.appendChild(hdr);
+    wrap.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Sexe" }));
+    const sexeGrid = el("div", { class: "row", style: "margin-bottom:12px" });
+    ["homme","femme"].forEach(s => {
+      const b = el("button", { class: "card card-half" + (v.sexe === s ? " active" : ""), text: s[0].toUpperCase() + s.slice(1) });
+      b.addEventListener("click", () => { v.sexe = s; state.editedMessage = null; render(document.getElementById("app-root")); });
+      sexeGrid.appendChild(b);
+    });
+    wrap.appendChild(sexeGrid);
+    wrap.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Statut particulier" }));
+    const statuts = [
+      {id:"aucun",label:"Aucun"},{id:"enfant",label:"Enfant"},{id:"nourrisson",label:"Nourrisson"},
+      {id:"militaireCorps",label:"Militaire du corps"},{id:"militaire",label:"Militaire"},{id:"policier",label:"Policier"}
+    ];
+    const statutGrid = el("div", { class: "grid-2", style: "margin-bottom:8px" });
+    statuts.forEach(s => {
+      const b = el("button", { class: "card" + (v.statut === s.id ? " active" : ""), text: s.label });
+      b.style.marginBottom = "0";
+      b.addEventListener("click", () => { v.statut = s.id; if (!["militaireCorps","militaire","policier"].includes(s.id)) v.service = null; state.editedMessage = null; render(document.getElementById("app-root")); });
+      statutGrid.appendChild(b);
+    });
+    wrap.appendChild(statutGrid);
+    if (["militaireCorps","militaire","policier"].includes(v.statut)) {
+      const svcGrid = el("div", { class: "row", style: "margin-top:8px" });
+      const svcO = el("button", { class: "card card-half" + (v.service === true ? " active" : ""), text: "En position de service" });
+      svcO.addEventListener("click", () => { v.service = true; state.editedMessage = null; render(document.getElementById("app-root")); });
+      const svcN = el("button", { class: "card card-half" + (v.service === false ? " active" : ""), text: "En position de repos" });
+      svcN.addEventListener("click", () => { v.service = false; state.editedMessage = null; render(document.getElementById("app-root")); });
+      svcGrid.appendChild(svcO); svcGrid.appendChild(svcN);
+      wrap.appendChild(svcGrid);
+    }
+    container.appendChild(wrap);
+  }
+
+  function render(root) {
+    root.innerHTML = "";
+    root.appendChild(el("div", { class: "header" }, [
+      el("div", { class: "brand" }, [document.createTextNode("Messages Radio "), el("span", { text: "BSPP" })]),
+      el("button", { class: "icon-btn", text: "⌂", onclick: () => goTo("home") })
+    ]));
+
+    if (cloture) return renderCloture(root);
+
+    const crumbs = ["Contexte","Moyens","Lieu","Victime(s)","Équipe médicale","Message"];
+    root.appendChild(el("div", { class: "crumb", text: "SAV > ACR > " + crumbs[step] }));
+    root.appendChild(el("div", { class: "progress-track" }, [ el("div", { class: "progress-fill", style: "width:" + ((step+1)/(totalSteps()+1)*100) + "%" }) ]));
+
+    if (step === 0) {
+      root.appendChild(el("h1", { class: "page-title", text: "Contexte de découverte" }));
+      contextes.forEach(c => {
+        const b = el("button", { class: "card" + (state.contexte === c.id ? " active" : ""), text: c.label });
+        b.addEventListener("click", () => { state.contexte = c.id; state.moyens.forEach(m => m.checked = c.moyens.includes(m.id)); state.editedMessage = null; render(root); });
+        root.appendChild(b);
+      });
+      if (state.contexte === "chute") {
+        root.appendChild(labeledInput("Hauteur de la chute (mètres)", "ex: 6", state.chuteMetres, v => { state.chuteMetres = v; state.editedMessage = null; }, true));
+      }
+      navButtons(root, !!state.contexte);
+    }
+
+    else if (step === 1) {
+      root.appendChild(el("h1", { class: "page-title", text: "Je demande..." }));
+      const toggle = el("div", { class: "row", style: "margin-bottom:16px" });
+      const oui = el("button", { class: "card card-half" + (state.demande === true ? " active" : ""), text: "Oui" });
+      oui.addEventListener("click", () => { state.demande = true; state.editedMessage = null; render(root); });
+      const non = el("button", { class: "card card-half" + (state.demande === false ? " active" : ""), text: "Non" });
+      non.addEventListener("click", () => { state.demande = false; state.editedMessage = null; render(root); });
+      toggle.appendChild(oui); toggle.appendChild(non);
+      root.appendChild(toggle);
+      if (state.demande === true) {
+        root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Moyens à engager" }));
+        const grid = el("div", { class: "grid-2" });
+        state.moyens.forEach(m => {
+          const b = el("button", { class: "card" + (m.checked ? " active" : ""), text: m.label });
+          b.style.marginBottom = "0";
+          b.addEventListener("click", () => { m.checked = !m.checked; state.editedMessage = null; render(root); });
+          grid.appendChild(b);
+        });
+        root.appendChild(grid);
+      }
+      navButtons(root, state.demande !== null);
+    }
+
+    else if (step === 2) {
+      root.appendChild(el("h1", { class: "page-title", text: "Lieu" }));
+      root.appendChild(labeledInput("Adresse", "43 rue Westermeyer", state.adresse, v => { state.adresse = v; state.editedMessage = null; }));
+      root.appendChild(labeledInput("Commune", "Ivry-sur-Seine", state.commune, v => { state.commune = v; state.editedMessage = null; }));
+      const parisBtn = el("button", { class: "card" + (state.paris ? " active" : ""), text: "Paris intra-muros", style: "margin-bottom:16px" });
+      parisBtn.addEventListener("click", () => { state.paris = !state.paris; state.editedMessage = null; render(root); });
+      root.appendChild(parisBtn);
+      root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Type de lieu" }));
+      const typeGrid = el("div", { class: "row", style: "margin-bottom:12px" });
+      const vp = el("button", { class: "card card-half" + (state.typeLieu === "vp" ? " active" : ""), text: "Voie publique" });
+      vp.addEventListener("click", () => { state.typeLieu = "vp"; state.editedMessage = null; const bv = state.moyens.find(x => x.id === "brisevue"); if (bv) bv.checked = true; render(root); });
+      const lp = el("button", { class: "card card-half" + (state.typeLieu === "lp" ? " active" : ""), text: "Lieu privé" });
+      lp.addEventListener("click", () => { state.typeLieu = "lp"; state.editedMessage = null; render(root); });
+      typeGrid.appendChild(vp); typeGrid.appendChild(lp);
+      root.appendChild(typeGrid);
+      if (state.typeLieu === "vp") root.appendChild(el("div", { class: "note", text: "Écran brise-vue pré-coché dans les moyens." }));
+      if (state.typeLieu === "lp") {
+        root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Étage" }));
+        const etRow = el("div", { class: "row", style: "margin-bottom:8px" });
+        const rdcBtn = el("button", { class: "card" + (state.rdc ? " active" : ""), text: "RDC", style: "flex:0 0 auto; width:80px; margin-bottom:0" });
+        rdcBtn.addEventListener("click", () => { state.rdc = !state.rdc; if (state.rdc) state.etageNum = ""; state.editedMessage = null; render(root); });
+        const numWrap = el("div", { style: "flex:1" });
+        const numInput = el("input", { type: "text" });
+        numInput.inputMode = "numeric"; numInput.placeholder = "ex: 3"; numInput.value = state.etageNum;
+        numInput.style.marginBottom = "0";
+        numInput.addEventListener("input", e => { state.etageNum = e.target.value.replace(/[^0-9]/g, ""); e.target.value = state.etageNum; state.editedMessage = null; });
+        numInput.addEventListener("focus", () => { if (state.rdc) { state.rdc = false; render(root); } });
+        numWrap.appendChild(numInput);
+        etRow.appendChild(rdcBtn); etRow.appendChild(numWrap);
+        root.appendChild(etRow);
+      }
+      navButtons(root, !!state.adresse && !!state.typeLieu);
+    }
+
+    else if (step === 3) {
+      root.appendChild(el("h1", { class: "page-title", text: "Victime(s)" }));
+      state.victimes.forEach((v, i) => renderVictimeBlock(root, i));
+      const addBtn = el("button", { class: "btn-dashed", text: "+ Ajouter une victime" });
+      addBtn.addEventListener("click", () => { state.victimes.push({ sexe: null, statut: "aucun", service: null }); render(root); });
+      root.appendChild(addBtn);
+      navButtons(root, state.victimes.every(v => !!v.sexe));
+    }
+
+    else if (step === 4) {
+      root.appendChild(el("h1", { class: "page-title", text: "Équipe médicale" }));
+      const typeGrid = el("div", { class: "row", style: "margin-bottom:14px" });
+      const ar = el("button", { class: "card card-half" + (state.eqType === "ar" ? " active" : ""), text: "AR" });
+      ar.addEventListener("click", () => { state.eqType = "ar"; state.eqChoix = null; state.editedMessage = null; render(root); });
+      const civ = el("button", { class: "card card-half" + (state.eqType === "civ" ? " active" : ""), text: "Équipe civile" });
+      civ.addEventListener("click", () => { state.eqType = "civ"; state.eqChoix = null; state.editedMessage = null; render(root); });
+      typeGrid.appendChild(ar); typeGrid.appendChild(civ);
+      root.appendChild(typeGrid);
+      if (state.eqType === "civ") {
+        root.appendChild(labeledInput("Équipe médicale ...", "Lariboisière", state.hopital, v => { state.hopital = v; state.editedMessage = null; }));
+        [["presente","Déjà présentée sur les lieux"],["attente","Demandée, on attend"]].forEach(([id,label]) => {
+          const b = el("button", { class: "card" + (state.eqChoix === id ? " active" : ""), text: label });
+          b.addEventListener("click", () => { state.eqChoix = state.eqChoix === id ? null : id; state.editedMessage = null; render(root); });
+          root.appendChild(b);
+        });
+      } else if (state.eqType === "ar") {
+        const b = el("button", { class: "card" + (state.eqChoix === "attente" ? " active" : ""), text: "Demandée, on attend" });
+        b.addEventListener("click", () => { state.eqChoix = state.eqChoix === "attente" ? null : "attente"; state.editedMessage = null; render(root); });
+        root.appendChild(b);
+        root.appendChild(el("div", { class: "note", text: "Optionnel : sans clic, rien n'apparaît dans le message mais le choix AR reste mémorisé." }));
+      }
+      navButtons(root, !!state.eqType && (state.eqType === "civ" ? !!state.eqChoix : true));
+    }
+
+    else if (step === 5) {
+      root.appendChild(el("h1", { class: "page-title", text: "Message généré" }));
+      if (!state.editing) {
+        const boxWrap = el("div", { class: "message-box-wrap" });
+        boxWrap.appendChild(el("div", { class: "message-box", text: currentMessage() }));
+        const editBtn = el("button", { class: "edit-btn", text: "✎" });
+        editBtn.addEventListener("click", () => { state.editing = true; render(root); });
+        boxWrap.appendChild(editBtn);
+        root.appendChild(boxWrap);
+        if (state.editedMessage !== null) root.appendChild(el("div", { class: "badge", text: "Modifié manuellement" }));
+      } else {
+        const ta = el("textarea", {});
+        ta.value = currentMessage();
+        ta.addEventListener("input", () => autoResize(ta));
+        root.appendChild(ta);
+        setTimeout(() => autoResize(ta), 0);
+        const editNav = el("div", { class: "row", style: "margin-bottom:16px" });
+        const cancel = el("button", { class: "btn-secondary", text: "Annuler" });
+        cancel.addEventListener("click", () => { state.editing = false; render(root); });
+        const valid = el("button", { class: "btn-primary", text: "Valider" });
+        valid.addEventListener("click", () => { state.editedMessage = ta.value; state.editing = false; render(root); });
+        editNav.appendChild(cancel); editNav.appendChild(valid);
+        root.appendChild(editNav);
+      }
+      const radioBtn = el("button", { class: "btn-primary", text: "Visualiser en grand", style: "width:100%; margin-bottom:8px" });
+      radioBtn.addEventListener("click", () => showRadioView(currentMessage, "acr"));
+      root.appendChild(radioBtn);
+      const saveBtn = el("button", { class: "btn-secondary", text: state.saved ? "Enregistré" : "Enregistrer", style: "width:100%; margin-bottom:8px" });
+      saveBtn.addEventListener("click", () => { state.saved = true; saveToHistory("ACR", currentMessage()); render(root); });
+      root.appendChild(saveBtn);
+      const clotureBtn = el("button", { class: "btn-ghost", text: "Passer à la clôture" });
+      clotureBtn.addEventListener("click", () => { cloture = true; render(root); });
+      root.appendChild(clotureBtn);
+    }
+  }
+
+  function renderCloture(root) {
+    root.appendChild(el("div", { class: "crumb", text: "SAV > ACR > Clôture" }));
+    root.appendChild(el("div", { class: "progress-track" }, [ el("div", { class: "progress-fill", style: "width:100%" }) ]));
+    root.appendChild(el("h1", { class: "page-title", text: "Clôture de l'intervention" }));
+
+    if (state.eqType === "civ") {
+      root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Équipe médicale " + (state.hopital || "") }));
+      const grid = el("div", { style: "margin-bottom:12px" });
+      [["sepresente","Se présente"],["presente","Présentée à..."]].forEach(([id,label]) => {
+        const b = el("button", { class: "card" + (state.clEqChoix === id ? " active" : ""), text: label });
+        b.addEventListener("click", () => { state.clEqChoix = id; render(root); });
+        grid.appendChild(b);
+      });
+      root.appendChild(grid);
+      if (state.clEqChoix === "presente") {
+        root.appendChild(labeledInput("Heure de présentation", "ex: 1530", state.clEqHeure, v => { state.clEqHeure = v; }));
+      }
+    }
+    root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Issue de la victime" }));
+    const issueGrid = el("div", { class: "row", style: "margin-bottom:16px" });
+    const ua = el("button", { class: "card card-half" + (state.clIssue === "ua" ? " active" : ""), text: "Urgence absolue" });
+    ua.addEventListener("click", () => { state.clIssue = "ua"; render(root); });
+    const dcd = el("button", { class: "card card-half" + (state.clIssue === "dcd" ? " active" : ""), text: "Décédée" });
+    dcd.addEventListener("click", () => { state.clIssue = "dcd"; render(root); });
+    issueGrid.appendChild(ua); issueGrid.appendChild(dcd);
+    root.appendChild(issueGrid);
+
+    root.appendChild(el("div", { class: "message-box", text: generateClotureMessage() || "…" , style: "margin-bottom:16px" }));
+
+    const radioBtn = el("button", { class: "btn-primary", text: "Visualiser en grand", style: "width:100%; margin-bottom:8px" });
+    radioBtn.addEventListener("click", () => showRadioView(() => generateClotureMessage() || "…", "acr"));
+    root.appendChild(radioBtn);
+    const saveBtn = el("button", { class: "btn-secondary", text: "Enregistrer la clôture", style: "width:100%; margin-bottom:8px" });
+    saveBtn.addEventListener("click", () => { saveToHistory("ACR — clôture", generateClotureMessage()); render(root); });
+    root.appendChild(saveBtn);
+    const back = el("button", { class: "btn-ghost", text: "Retour au message initial" });
+    back.addEventListener("click", () => { cloture = false; render(root); });
+    root.appendChild(back);
+  }
+
+  return { reset, render };
+})();
+
+/* ============================================================
+   MODULE AVP
+   ============================================================ */
+const AVP = (function () {
+  let state, step;
+
+  function reset() {
+    state = {
+      contexte: null,
+      vehicules: [
+        { id: "tourisme", label: "Véhicule de tourisme", count: 0, genre: "m" },
+        { id: "pl", label: "Poids lourd", count: 0, genre: "m" },
+        { id: "bus", label: "Bus", count: 0, genre: "m" },
+        { id: "deuxroues", label: "Deux-roues", count: 0, genre: "m" },
+        { id: "utilitaire", label: "Utilitaire", count: 0, genre: "m" },
+        { id: "pieton", label: "Piéton", count: 0, genre: "m" }
+      ],
+      victimes: [ { gravite: null, sexe: null, statut: "aucun", service: null } ],
+      demande: null,
+      moyens: [
+        { id: "ep", label: "Engin pompe", checked: false, priorite: 1 },
+        { id: "vsav", label: "VSAV", checked: false, priorite: 2 },
+        { id: "mea", label: "Moyen élévateur aérien", checked: false, priorite: 3 },
+        { id: "medical", label: "Groupe médical", checked: false, priorite: 4 },
+        { id: "police", label: "Police", checked: false, priorite: 10 },
+        { id: "dirif", label: "DiRIF", checked: false, priorite: 11 }
+      ],
+      adresse: "", commune: "", paris: false,
+      voieType: "", sens: null, pk: "",
+      circulation: null, voiesInterrompues: "", voiesTotal: "", perimetre: false,
+      eqType: null, hopital: "", eqChoix: null,
+      saved: false, editing: false, editedMessage: null
+    };
+    step = 0;
+  }
+  reset();
+
+  function totalUA() { return state.victimes.filter(v => v.gravite === "ua").length; }
+  function vehiculesText() {
+    const used = state.vehicules.filter(v => v.count > 0);
+    if (used.length === 0) return "[véhicules]";
+    const totalActors = used.reduce((s,v) => s + v.count, 0);
+    let txt = used.map(v => v.count + " " + v.label.toLowerCase() + (v.count > 1 ? "s" : "")).join(" et ");
+    if (totalActors === 1) txt += used[0].genre === "f" ? " seule" : " seul";
+    return txt;
+  }
+  function bilanText() {
+    const n = state.victimes.length;
+    if (n === 1) {
+      const v = state.victimes[0];
+      const gravTxt = "urgence " + (v.gravite === "ua" ? "absolue" : "relative");
+      if (v.statut !== "aucun" && specialNouns[v.statut]) return "dénombrement terrain provisoire : " + victimeNoun(v) + ", " + gravTxt;
+      return "dénombrement terrain provisoire : une " + gravTxt;
+    }
+    const uaCount = state.victimes.filter(v => v.gravite === "ua").length;
+    const urCount = state.victimes.filter(v => v.gravite === "ur").length;
+    let parts = [];
+    if (uaCount > 0) parts.push((uaCount === 1 ? "une" : uaCount) + " urgence" + (uaCount > 1 ? "s" : "") + " absolue" + (uaCount > 1 ? "s" : ""));
+    if (urCount > 0) parts.push((urCount === 1 ? "une" : urCount) + " urgence" + (urCount > 1 ? "s" : "") + " relative" + (urCount > 1 ? "s" : ""));
+    const specials = state.victimes.filter(v => v.statut !== "aucun").map(v => victimeNoun(v));
+    let txt = "dénombrement terrain provisoire : " + parts.join(" et ");
+    if (specials.length > 0) txt += " dont " + specials.join(", ");
+    return txt;
+  }
+  function generateMessage() {
+    const moyensLabels = state.moyens.filter(m => m.checked).sort((a,b) => a.priorite - b.priorite).map(m => m.label.toLowerCase());
+    let demandePart = "";
+    if (state.demande === true && moyensLabels.length > 0) demandePart = "Je demande " + moyensLabels.join(" et ") + ", ";
+    let lieuPart;
+    if (state.contexte === "voierapide") {
+      lieuPart = (state.voieType || "[voie]") + (state.sens ? ", " + state.sens : "") + (state.pk ? ", point kilométrique " + state.pk : "");
+    } else {
+      lieuPart = (state.adresse || "[adresse]") + (!state.paris && state.commune ? " à " + state.commune : "");
+    }
+    const motifPrefix = "accident de la circulation impliquant " + vehiculesText();
+    let mesuresPart = "";
+    if (state.circulation === "reduite" && state.voiesInterrompues && state.voiesTotal) {
+      mesuresPart = state.voiesInterrompues + " voie" + (parseInt(state.voiesInterrompues) > 1 ? "s" : "") + " interrompue" + (parseInt(state.voiesInterrompues) > 1 ? "s" : "") + " sur " + state.voiesTotal;
+    } else if (state.circulation === "interrompue") mesuresPart = "circulation totalement interrompue";
+    let eqPart = "";
+    if (totalUA() > 0 && state.eqType === "civ") {
+      eqPart = state.eqChoix === "presente" ? "équipe médicale " + (state.hopital || "[hôpital]") + " présentée sur les lieux" : state.eqChoix === "attente" ? "attendons équipe médicale" : "";
+    } else if (totalUA() > 0 && state.eqType === "ar" && state.eqChoix === "attente") {
+      eqPart = "attendons équipe médicale";
+    }
+    const tail = [ state.perimetre ? "périmètre de sécurité et reconnaissances en cours" : "reconnaissances en cours" ];
+    const segments = [
+      demandePart + lieuPart + ", " + motifPrefix + ".",
+      bilanText() + ".",
+      mesuresPart ? mesuresPart + "." : "",
+      eqPart ? eqPart + "." : "",
+      tail.join(", ") + "."
+    ].filter(s => s !== "");
+    return segments.join(" ");
+  }
+  function currentMessage() { return state.editedMessage !== null ? state.editedMessage : generateMessage(); }
+
+  function totalSteps() { return 7; }
+
+  function navButtons(container, canNext) {
+    const nav = el("div", { class: "nav-buttons" });
+    if (step > 0 && step < totalSteps()) {
+      nav.appendChild(el("button", { class: "btn-secondary", text: "Précédent", onclick: () => { step--; if (step === 6 && totalUA() === 0) step--; render(document.getElementById("app-root")); } }));
+    }
+    if (step < totalSteps()) {
+      const next = el("button", { class: "btn-primary", text: step === totalSteps() - 1 ? "Générer le message" : "Suivant" });
+      next.disabled = !canNext;
+      next.addEventListener("click", () => { if (!canNext) return; step++; if (step === 6 && totalUA() === 0) step++; render(document.getElementById("app-root")); });
+      nav.appendChild(next);
+    }
+    container.appendChild(nav);
+  }
+
+  function renderVictimeBlock(container, index) {
+    const v = state.victimes[index];
+    const wrap = el("div", { class: "victime-block" });
+    const hdr = el("div", { class: "victime-header" }, [ el("span", { text: "Victime " + (index + 1) }) ]);
+    if (index > 0) {
+      hdr.appendChild(el("button", { class: "remove-link", text: "Retirer", onclick: () => { state.victimes.splice(index, 1); state.editedMessage = null; render(document.getElementById("app-root")); } }));
+    }
+    wrap.appendChild(hdr);
+    wrap.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Catégorisation" }));
+    const gravGrid = el("div", { class: "row", style: "margin-bottom:12px" });
+    [["ua","Urgence absolue"],["ur","Urgence relative"]].forEach(([id,label]) => {
+      const b = el("button", { class: "card card-half" + (v.gravite === id ? " active" : ""), text: label });
+      b.addEventListener("click", () => { v.gravite = id; state.editedMessage = null; render(document.getElementById("app-root")); });
+      gravGrid.appendChild(b);
+    });
+    wrap.appendChild(gravGrid);
+    wrap.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Sexe" }));
+    const sexeGrid = el("div", { class: "row", style: "margin-bottom:12px" });
+    ["homme","femme"].forEach(s => {
+      const b = el("button", { class: "card card-half" + (v.sexe === s ? " active" : ""), text: s[0].toUpperCase() + s.slice(1) });
+      b.addEventListener("click", () => { v.sexe = s; state.editedMessage = null; render(document.getElementById("app-root")); });
+      sexeGrid.appendChild(b);
+    });
+    wrap.appendChild(sexeGrid);
+    wrap.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Statut particulier" }));
+    const statuts = [
+      {id:"aucun",label:"Aucun"},{id:"enfant",label:"Enfant"},{id:"nourrisson",label:"Nourrisson"},
+      {id:"militaireCorps",label:"Militaire du corps"},{id:"militaire",label:"Militaire"},{id:"policier",label:"Policier"}
+    ];
+    const statutGrid = el("div", { class: "grid-2", style: "margin-bottom:8px" });
+    statuts.forEach(s => {
+      const b = el("button", { class: "card" + (v.statut === s.id ? " active" : ""), text: s.label });
+      b.style.marginBottom = "0";
+      b.addEventListener("click", () => { v.statut = s.id; if (!["militaireCorps","militaire","policier"].includes(s.id)) v.service = null; state.editedMessage = null; render(document.getElementById("app-root")); });
+      statutGrid.appendChild(b);
+    });
+    wrap.appendChild(statutGrid);
+    if (["militaireCorps","militaire","policier"].includes(v.statut)) {
+      const svcGrid = el("div", { class: "row", style: "margin-top:8px" });
+      const svcO = el("button", { class: "card card-half" + (v.service === true ? " active" : ""), text: "En position de service" });
+      svcO.addEventListener("click", () => { v.service = true; state.editedMessage = null; render(document.getElementById("app-root")); });
+      const svcN = el("button", { class: "card card-half" + (v.service === false ? " active" : ""), text: "En position de repos" });
+      svcN.addEventListener("click", () => { v.service = false; state.editedMessage = null; render(document.getElementById("app-root")); });
+      svcGrid.appendChild(svcO); svcGrid.appendChild(svcN);
+      wrap.appendChild(svcGrid);
+    }
+    container.appendChild(wrap);
+  }
+
+  function render(root) {
+    root.innerHTML = "";
+    root.appendChild(el("div", { class: "header" }, [
+      el("div", { class: "brand" }, [document.createTextNode("Messages Radio "), el("span", { text: "BSPP" })]),
+      el("button", { class: "icon-btn", text: "⌂", onclick: () => goTo("home") })
+    ]));
+
+    const crumbs = ["Contexte","Véhicules","Victime(s)","Moyens","Lieu","Mesures","Équipe médicale","Message"];
+    root.appendChild(el("div", { class: "crumb", text: "SAV > AVP > " + crumbs[step] }));
+    root.appendChild(el("div", { class: "progress-track" }, [ el("div", { class: "progress-fill", style: "width:" + ((step+1)/(totalSteps()+1)*100) + "%" }) ]));
+
+    if (step === 0) {
+      root.appendChild(el("h1", { class: "page-title", text: "Contexte" }));
+      [["classique","Accident classique"],["voierapide","Voie rapide / périphérique"]].forEach(([id,label]) => {
+        const b = el("button", { class: "card" + (state.contexte === id ? " active" : ""), text: label });
+        b.addEventListener("click", () => { state.contexte = id; state.editedMessage = null; render(root); });
+        root.appendChild(b);
+      });
+      navButtons(root, !!state.contexte);
+    }
+
+    else if (step === 1) {
+      root.appendChild(el("h1", { class: "page-title", text: "Véhicules impliqués" }));
+      state.vehicules.forEach(v => {
+        const row = el("div", { class: "vehicule-row" }, [ el("span", { class: "label", text: v.label }) ]);
+        const ctr = el("div", { class: "counter" });
+        const minus = el("button", { text: "−" });
+        minus.addEventListener("click", () => { if (v.count > 0) v.count--; state.editedMessage = null; render(root); });
+        const count = el("span", { class: "count", text: String(v.count) });
+        const plus = el("button", { text: "+" });
+        plus.addEventListener("click", () => { v.count++; state.editedMessage = null; render(root); });
+        ctr.appendChild(minus); ctr.appendChild(count); ctr.appendChild(plus);
+        row.appendChild(ctr);
+        root.appendChild(row);
+      });
+      const totalActors = state.vehicules.reduce((s,v) => s + v.count, 0);
+      if (totalActors === 1) root.appendChild(el("div", { class: "note", text: "Un seul acteur impliqué : le suffixe \"seul\"/\"seule\" sera ajouté automatiquement." }));
+      navButtons(root, state.vehicules.some(v => v.count > 0));
+    }
+
+    else if (step === 2) {
+      root.appendChild(el("h1", { class: "page-title", text: "Victime(s)" }));
+      state.victimes.forEach((v, i) => renderVictimeBlock(root, i));
+      const addBtn = el("button", { class: "btn-dashed", text: "+ Ajouter une victime" });
+      addBtn.addEventListener("click", () => { state.victimes.push({ gravite: null, sexe: null, statut: "aucun", service: null }); render(root); });
+      root.appendChild(addBtn);
+      navButtons(root, state.victimes.every(v => !!v.gravite && !!v.sexe));
+    }
+
+    else if (step === 3) {
+      root.appendChild(el("h1", { class: "page-title", text: "Je demande..." }));
+      const toggle = el("div", { class: "row", style: "margin-bottom:16px" });
+      const oui = el("button", { class: "card card-half" + (state.demande === true ? " active" : ""), text: "Oui" });
+      oui.addEventListener("click", () => {
+        state.demande = true; state.editedMessage = null;
+        const nbVeh = state.vehicules.reduce((s,v) => s + v.count, 0);
+        const p = state.moyens.find(x => x.id === "police"); if (p) p.checked = state.contexte === "voierapide" || nbVeh >= 2;
+        const d = state.moyens.find(x => x.id === "dirif"); if (d) d.checked = state.contexte === "voierapide";
+        const m = state.moyens.find(x => x.id === "medical"); if (m) m.checked = totalUA() >= 2;
+        render(root);
+      });
+      const non = el("button", { class: "card card-half" + (state.demande === false ? " active" : ""), text: "Non" });
+      non.addEventListener("click", () => { state.demande = false; state.editedMessage = null; render(root); });
+      toggle.appendChild(oui); toggle.appendChild(non);
+      root.appendChild(toggle);
+      if (state.demande === true) {
+        root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Moyens à engager" }));
+        const grid = el("div", { class: "grid-2" });
+        state.moyens.forEach(m => {
+          const b = el("button", { class: "card" + (m.checked ? " active" : ""), text: m.label });
+          b.style.marginBottom = "0";
+          b.addEventListener("click", () => { m.checked = !m.checked; state.editedMessage = null; render(root); });
+          grid.appendChild(b);
+        });
+        root.appendChild(grid);
+      }
+      navButtons(root, state.demande !== null);
+    }
+
+    else if (step === 4) {
+      root.appendChild(el("h1", { class: "page-title", text: "Lieu" }));
+      if (state.contexte === "voierapide") {
+        root.appendChild(labeledInput("Voie", "Périphérique extérieur, A4...", state.voieType, v => { state.voieType = v; state.editedMessage = null; }));
+        root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Sens" }));
+        ["Sens Paris - Province","Sens Province - Paris","Périphérique intérieur","Périphérique extérieur"].forEach(s => {
+          const b = el("button", { class: "card" + (state.sens === s ? " active" : ""), text: s });
+          b.addEventListener("click", () => { state.sens = s; state.editedMessage = null; render(root); });
+          root.appendChild(b);
+        });
+        root.appendChild(labeledInput("Point kilométrique", "36,5", state.pk, v => { state.pk = v; state.editedMessage = null; }));
+      } else {
+        root.appendChild(labeledInput("Adresse", "40 boulevard de la Chapelle", state.adresse, v => { state.adresse = v; state.editedMessage = null; }));
+        root.appendChild(labeledInput("Commune", "Paris", state.commune, v => { state.commune = v; state.editedMessage = null; }));
+        const parisBtn = el("button", { class: "card" + (state.paris ? " active" : ""), text: "Paris intra-muros" });
+        parisBtn.addEventListener("click", () => { state.paris = !state.paris; state.editedMessage = null; render(root); });
+        root.appendChild(parisBtn);
+      }
+      navButtons(root, state.contexte === "voierapide" ? (!!state.voieType && !!state.sens) : !!state.adresse);
+    }
+
+    else if (step === 5) {
+      root.appendChild(el("h1", { class: "page-title", text: "Mesures prises" }));
+      root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Circulation" }));
+      [["fluide","Fluide, pas de gêne"],["reduite","Voies interrompues"],["interrompue","Totalement interrompue"]].forEach(([id,label]) => {
+        const b = el("button", { class: "card" + (state.circulation === id ? " active" : ""), text: label });
+        b.addEventListener("click", () => { state.circulation = id; state.editedMessage = null; render(root); });
+        root.appendChild(b);
+      });
+      if (state.circulation === "reduite") {
+        const row = el("div", { class: "row", style: "margin-bottom:12px" });
+        const vi = labeledInput("Voies interrompues", "ex: 1", state.voiesInterrompues, v => { state.voiesInterrompues = v; state.editedMessage = null; render(root); }, true);
+        vi.style.flex = "1";
+        const vt = labeledInput("Total de voies", "ex: 3", state.voiesTotal, v => { state.voiesTotal = v; state.editedMessage = null; render(root); }, true);
+        vt.style.flex = "1";
+        row.appendChild(vi); row.appendChild(vt);
+        root.appendChild(row);
+        if (state.voiesInterrompues && state.voiesTotal) {
+          root.appendChild(el("div", { class: "note", text: "Aperçu : " + state.voiesInterrompues + " voie" + (parseInt(state.voiesInterrompues) > 1 ? "s" : "") + " interrompue" + (parseInt(state.voiesInterrompues) > 1 ? "s" : "") + " sur " + state.voiesTotal }));
+        }
+      }
+      const perimBtn = el("button", { class: "card" + (state.perimetre ? " active" : ""), text: "Périmètre de sécurité" });
+      perimBtn.addEventListener("click", () => { state.perimetre = !state.perimetre; state.editedMessage = null; render(root); });
+      root.appendChild(perimBtn);
+      navButtons(root, !!state.circulation);
+    }
+
+    else if (step === 6) {
+      root.appendChild(el("h1", { class: "page-title", text: "Équipe médicale" }));
+      const typeGrid = el("div", { class: "row", style: "margin-bottom:14px" });
+      const ar = el("button", { class: "card card-half" + (state.eqType === "ar" ? " active" : ""), text: "AR" });
+      ar.addEventListener("click", () => { state.eqType = "ar"; state.eqChoix = null; state.editedMessage = null; render(root); });
+      const civ = el("button", { class: "card card-half" + (state.eqType === "civ" ? " active" : ""), text: "Équipe civile" });
+      civ.addEventListener("click", () => { state.eqType = "civ"; state.eqChoix = null; state.editedMessage = null; render(root); });
+      typeGrid.appendChild(ar); typeGrid.appendChild(civ);
+      root.appendChild(typeGrid);
+      if (state.eqType === "civ") {
+        root.appendChild(labeledInput("Équipe médicale ...", "Lariboisière", state.hopital, v => { state.hopital = v; state.editedMessage = null; }));
+        [["presente","Déjà présentée sur les lieux"],["attente","Demandée, on attend"]].forEach(([id,label]) => {
+          const b = el("button", { class: "card" + (state.eqChoix === id ? " active" : ""), text: label });
+          b.addEventListener("click", () => { state.eqChoix = state.eqChoix === id ? null : id; state.editedMessage = null; render(root); });
+          root.appendChild(b);
+        });
+      } else if (state.eqType === "ar") {
+        const b = el("button", { class: "card" + (state.eqChoix === "attente" ? " active" : ""), text: "Demandée, on attend" });
+        b.addEventListener("click", () => { state.eqChoix = state.eqChoix === "attente" ? null : "attente"; state.editedMessage = null; render(root); });
+        root.appendChild(b);
+      }
+      navButtons(root, !!state.eqType && (state.eqType === "civ" ? !!state.eqChoix : true));
+    }
+
+    else if (step === 7) {
+      root.appendChild(el("h1", { class: "page-title", text: "Message généré" }));
+      if (!state.editing) {
+        const boxWrap = el("div", { class: "message-box-wrap" });
+        boxWrap.appendChild(el("div", { class: "message-box", text: currentMessage() }));
+        const editBtn = el("button", { class: "edit-btn", text: "✎" });
+        editBtn.addEventListener("click", () => { state.editing = true; render(root); });
+        boxWrap.appendChild(editBtn);
+        root.appendChild(boxWrap);
+        if (state.editedMessage !== null) root.appendChild(el("div", { class: "badge", text: "Modifié manuellement" }));
+      } else {
+        const ta = el("textarea", {});
+        ta.value = currentMessage();
+        ta.addEventListener("input", () => autoResize(ta));
+        root.appendChild(ta);
+        setTimeout(() => autoResize(ta), 0);
+        const editNav = el("div", { class: "row", style: "margin-bottom:16px" });
+        const cancel = el("button", { class: "btn-secondary", text: "Annuler" });
+        cancel.addEventListener("click", () => { state.editing = false; render(root); });
+        const valid = el("button", { class: "btn-primary", text: "Valider" });
+        valid.addEventListener("click", () => { state.editedMessage = ta.value; state.editing = false; render(root); });
+        editNav.appendChild(cancel); editNav.appendChild(valid);
+        root.appendChild(editNav);
+      }
+      const radioBtn = el("button", { class: "btn-primary", text: "Visualiser en grand", style: "width:100%; margin-bottom:8px" });
+      radioBtn.addEventListener("click", () => showRadioView(currentMessage, "avp"));
+      root.appendChild(radioBtn);
+      const saveBtn = el("button", { class: "btn-secondary", text: state.saved ? "Enregistré" : "Enregistrer", style: "width:100%" });
+      saveBtn.addEventListener("click", () => { state.saved = true; saveToHistory("AVP", currentMessage()); render(root); });
+      root.appendChild(saveBtn);
+    }
+  }
+
+  return { reset, render };
+})();
+
+renderApp();
+</script>
+</body>
+</html>
