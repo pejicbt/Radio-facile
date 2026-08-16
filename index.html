@@ -1001,9 +1001,6 @@ const ACR = (function () {
 
   function navButtons(container, canNext) {
     const nav = el("div", { class: "nav-buttons" });
-    if (step > 0 && step < totalSteps()) {
-      nav.appendChild(el("button", { class: "btn-secondary", text: "Précédent", onclick: () => { step--; render(document.getElementById("app-root")); } }));
-    }
     if (step < totalSteps()) {
       const next = el("button", { class: "btn-primary", text: step === totalSteps() - 1 ? "Générer le message" : "Suivant" });
       next.disabled = !canNext;
@@ -1063,10 +1060,10 @@ const ACR = (function () {
     const crumbs = ["Contexte","Moyens","Lieu","Victime(s)","Équipe médicale","Message"];
     renderStepCrumb(root, "SAV › ACR", crumbs, step, i => { step = i; render(root); });
     root.appendChild(el("div", { class: "progress-track" }, [ el("div", { class: "progress-fill", style: "width:" + ((step+1)/(totalSteps()+1)*100) + "%" }) ]));
+    root.appendChild(precedentButton(() => { if (step > 0) { step--; render(root); } else { goTo("intervention-detail"); } }));
 
     if (step === 0) {
       root.appendChild(el("h1", { class: "page-title", text: "Contexte de découverte" }));
-      root.appendChild(precedentButton(() => goTo("intervention-detail")));
       contextes.forEach(c => {
         const b = el("button", { class: "card" + (state.contexte === c.id ? " active" : ""), text: c.label });
         b.addEventListener("click", () => {
@@ -1391,9 +1388,6 @@ const AVP = (function () {
 
   function navButtons(container, canNext) {
     const nav = el("div", { class: "nav-buttons" });
-    if (step > 0 && step < totalSteps()) {
-      nav.appendChild(el("button", { class: "btn-secondary", text: "Précédent", onclick: () => { step--; if (step === 6 && totalUA() === 0) step--; render(document.getElementById("app-root")); } }));
-    }
     if (step < totalSteps()) {
       const next = el("button", { class: "btn-primary", text: step === totalSteps() - 1 ? "Générer le message" : "Suivant" });
       next.disabled = !canNext;
@@ -1460,10 +1454,13 @@ const AVP = (function () {
     const crumbs = ["Contexte","Véhicules","Victime(s)","Moyens","Lieu","Mesures","Équipe médicale","Message"];
     renderStepCrumb(root, "SAV › AVP", crumbs, step, i => { step = i; render(root); });
     root.appendChild(el("div", { class: "progress-track" }, [ el("div", { class: "progress-fill", style: "width:" + ((step+1)/(totalSteps()+1)*100) + "%" }) ]));
+    root.appendChild(precedentButton(() => {
+      if (step > 0) { step--; if (step === 6 && totalUA() === 0) step--; render(root); }
+      else { goTo("intervention-detail"); }
+    }));
 
     if (step === 0) {
       root.appendChild(el("h1", { class: "page-title", text: "Contexte" }));
-      root.appendChild(precedentButton(() => goTo("intervention-detail")));
       [["classique","Accident classique"],["voierapide","Voie rapide / périphérique"]].forEach(([id,label]) => {
         const b = el("button", { class: "card" + (state.contexte === id ? " active" : ""), text: label });
         b.addEventListener("click", () => { state.contexte = id; state.editedMessage = null; step++; render(root); });
@@ -1695,42 +1692,82 @@ const Renseignement = (function () {
   let victimes = [];
   let eqType = null, hopital = "";
   let moyensPublics = [], perimetre = false;
-  let policeChoix = null, policeHeure = "";
-  let dirifChoix = null, dirifHeure = "";
-  let eqChoix = null, eqHeure = "";
+  let svc = { police: {}, dirif: {}, escorte: {}, eqMed: {} };
   let saved = false, editing = false, editedMessage = null;
 
   function start(iv) {
     ivId = iv.id;
     const data = iv.data || {};
-    victimes = data.victimes && data.victimes.length
-      ? JSON.parse(JSON.stringify(data.victimes)).map(v => Object.assign({ gravite: "acr" }, v))
-      : [ { sexe: null, statut: "aucun", service: null, gravite: "acr" } ];
+    victimes = (data.victimes && data.victimes.length ? data.victimes : [ { sexe: null, statut: "aucun", service: null } ])
+      .map(v => ({ sexe: v.sexe, statut: v.statut, service: v.service, devenirGravite: null, transportChoix: null, dispositionChoix: null }));
     eqType = data.eqType || null;
     hopital = data.hopital || "";
     moyensPublics = data.moyensPublics || [];
     perimetre = !!data.perimetre;
-    policeChoix = null; policeHeure = "";
-    dirifChoix = null; dirifHeure = "";
-    eqChoix = null; eqHeure = "";
+    const pres = data.presence || {};
+    ["police","dirif","escorte","eqMed"].forEach(key => {
+      const prior = pres[key];
+      svc[key] = prior && prior.choix
+        ? { choix: prior.choix, heure: prior.heure || "", announcedBefore: true }
+        : { choix: null, heure: "", announcedBefore: false };
+    });
     saved = false; editing = false; editedMessage = null;
   }
 
+  function victimClause(v, idx, total, ctx) {
+    const label = total > 1 ? "victime " + (idx + 1) : "victime";
+    if (v.devenirGravite === "ua" && v.transportChoix === "equipe") {
+      let txt = label + " évacuée par équipe médicale";
+      if (eqType === "civ") txt += " " + (hopital || "[hôpital]");
+      if (svc.eqMed.choix === "presente" && !svc.eqMed.announcedBefore) {
+        txt += " présentée" + (svc.eqMed.heure ? " à " + svc.eqMed.heure : "");
+        ctx.eqMedConsumed = true;
+      }
+      return txt;
+    }
+    if (v.devenirGravite === "ua" && v.transportChoix === "vous") return label + " évacuée par nos soins";
+    if (v.devenirGravite === "dcd" && v.dispositionChoix === "police") {
+      let txt = label + " décédée laissée à disposition de la police";
+      if (svc.police.choix === "presente" && !svc.police.announcedBefore) {
+        txt += " présentée" + (svc.police.heure ? " à " + svc.police.heure : "");
+        ctx.policeConsumed = true;
+      }
+      return txt;
+    }
+    if (v.devenirGravite === "dcd" && v.dispositionChoix === "famille") return label + " décédée laissée à disposition de la famille";
+    return null;
+  }
+
   function generateMessage() {
+    const ctx = { policeConsumed: false, eqMedConsumed: false };
     const parts = [];
-    if (moyensPublics.includes("police") && policeChoix) {
-      parts.push(policeChoix === "presente" ? "Police présentée" + (policeHeure ? " à " + policeHeure : "") + "." : "Police se présente.");
-      if (perimetre && policeChoix === "presente") parts.push("Périmètre de sécurité laissé à disposition de la police.");
+    victimes.forEach((v, i) => {
+      const c = victimClause(v, i, victimes.length, ctx);
+      if (c) parts.push(c);
+    });
+    if (perimetre && moyensPublics.includes("police") && svc.police.choix === "presente") {
+      let txt = "périmètre de sécurité laissé à disposition de la police";
+      if (!ctx.policeConsumed && !svc.police.announcedBefore) {
+        txt += " présentée" + (svc.police.heure ? " à " + svc.police.heure : "");
+        ctx.policeConsumed = true;
+      }
+      parts.push(txt);
     }
-    if (moyensPublics.includes("dirif") && dirifChoix) {
-      parts.push(dirifChoix === "presente" ? "DiRIF présenté" + (dirifHeure ? " à " + dirifHeure : "") + "." : "DiRIF se présente.");
+    if (moyensPublics.includes("police") && svc.police.choix && !svc.police.announcedBefore && !ctx.policeConsumed) {
+      parts.push(svc.police.choix === "presente" ? "police présentée" + (svc.police.heure ? " à " + svc.police.heure : "") : "police se présente");
     }
-    if (eqType === "civ" && eqChoix) {
-      if (eqChoix === "presente") parts.push("Équipe médicale " + (hopital || "[hôpital]") + " présentée" + (eqHeure ? " à " + eqHeure : "") + ".");
-      else if (eqChoix === "sepresente") parts.push("Équipe médicale " + (hopital || "[hôpital]") + " se présente.");
+    if (moyensPublics.includes("dirif") && svc.dirif.choix && !svc.dirif.announcedBefore) {
+      parts.push(svc.dirif.choix === "presente" ? "DiRIF présenté" + (svc.dirif.heure ? " à " + svc.dirif.heure : "") : "DiRIF se présente");
     }
-    parts.push(denombrementText(victimes, "définitif") + ".");
-    return parts.join(" ");
+    if (moyensPublics.includes("escorte") && svc.escorte.choix && !svc.escorte.announcedBefore) {
+      parts.push(svc.escorte.choix === "presente" ? "escorte motorisée présentée" + (svc.escorte.heure ? " à " + svc.escorte.heure : "") : "escorte motorisée se présente");
+    }
+    if (eqType === "civ" && svc.eqMed.choix && !svc.eqMed.announcedBefore && !ctx.eqMedConsumed) {
+      parts.push(svc.eqMed.choix === "presente" ? "équipe médicale " + (hopital || "[hôpital]") + " présentée" + (svc.eqMed.heure ? " à " + svc.eqMed.heure : "") : "équipe médicale " + (hopital || "[hôpital]") + " se présente");
+    }
+    if (parts.length === 0) return "…";
+    const msg = parts.join(", ");
+    return msg.charAt(0).toUpperCase() + msg.slice(1) + ".";
   }
   function currentMessage() { return editedMessage !== null ? editedMessage : generateMessage(); }
 
@@ -1772,16 +1809,56 @@ const Renseignement = (function () {
       svcGrid.appendChild(svcO); svcGrid.appendChild(svcN);
       wrap.appendChild(svcGrid);
     }
-    wrap.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Issue définitive" }));
-    const gravGrid = el("div", { class: "grid-2", style: "margin-bottom:0" });
-    [["ua","Urgence absolue"],["ur","Urgence relative"],["acr","Arrêt cardio-respiratoire"],["dcd","Décédée"]].forEach(([id,label]) => {
-      const b = el("button", { class: "card" + (v.gravite === id ? " active" : ""), text: label });
+    wrap.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Devenir de la victime" }));
+    const devGrid = el("div", { class: "grid-2", style: "margin-bottom:8px" });
+    [["","Pas déterminé"],["ua","Urgence absolue"],["ur","Urgence relative"],["dcd","Décédée"]].forEach(([id,label]) => {
+      const val = id === "" ? null : id;
+      const b = el("button", { class: "card" + (v.devenirGravite === val ? " active" : ""), text: label });
       b.style.marginBottom = "0";
-      b.addEventListener("click", () => { v.gravite = id; editedMessage = null; render(document.getElementById("app-root")); });
-      gravGrid.appendChild(b);
+      b.addEventListener("click", () => { v.devenirGravite = val; v.transportChoix = null; v.dispositionChoix = null; editedMessage = null; render(document.getElementById("app-root")); });
+      devGrid.appendChild(b);
     });
-    wrap.appendChild(gravGrid);
+    wrap.appendChild(devGrid);
+    if (v.devenirGravite === "ua") {
+      wrap.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Évacuée par" }));
+      const grid = el("div", { class: "row", style: "margin-bottom:0" });
+      [["equipe","Équipe médicale"],["vous","Vous"]].forEach(([id,label]) => {
+        const b = el("button", { class: "card card-half" + (v.transportChoix === id ? " active" : ""), text: label });
+        b.addEventListener("click", () => { v.transportChoix = v.transportChoix === id ? null : id; editedMessage = null; render(document.getElementById("app-root")); });
+        grid.appendChild(b);
+      });
+      wrap.appendChild(grid);
+    } else if (v.devenirGravite === "dcd") {
+      wrap.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Laissée à disposition de" }));
+      const grid = el("div", { class: "row", style: "margin-bottom:0" });
+      [["police","La police"],["famille","La famille"]].forEach(([id,label]) => {
+        const b = el("button", { class: "card card-half" + (v.dispositionChoix === id ? " active" : ""), text: label });
+        b.addEventListener("click", () => { v.dispositionChoix = v.dispositionChoix === id ? null : id; editedMessage = null; render(document.getElementById("app-root")); });
+        grid.appendChild(b);
+      });
+      wrap.appendChild(grid);
+    }
     container.appendChild(wrap);
+  }
+
+  function renderServiceChoice(root, key, label) {
+    root.appendChild(el("div", { class: "note", style: "margin-top:0", text: label }));
+    if (svc[key].announcedBefore) {
+      root.appendChild(el("div", { class: "note", text: label + " déjà annoncé" + (label === "Équipe médicale" ? "e" : "") + (svc[key].heure ? " à " + svc[key].heure : "") + "." }));
+      return;
+    }
+    const grid = el("div", { class: "row", style: "margin-bottom:12px" });
+    [["sepresente","Se présente"],["presente","Présentée à..."]].forEach(([id,label2]) => {
+      const b = el("button", { class: "card card-half" + (svc[key].choix === id ? " active" : ""), text: label2 });
+      b.addEventListener("click", () => { svc[key].choix = svc[key].choix === id ? null : id; editedMessage = null; render(root); });
+      grid.appendChild(b);
+    });
+    root.appendChild(grid);
+    if (svc[key].choix === "presente") {
+      const wrap = labeledInput("Heure de présentation", "ex: 1530", svc[key].heure, v => { svc[key].heure = v; editedMessage = null; });
+      wrap.querySelector("input").addEventListener("blur", () => render(root));
+      root.appendChild(wrap);
+    }
   }
 
   function render(root) {
@@ -1791,59 +1868,27 @@ const Renseignement = (function () {
     root.appendChild(el("h1", { class: "page-title", text: "Éléments à transmettre" }));
     root.appendChild(precedentButton(() => goTo("intervention-detail")));
 
-    if (moyensPublics.includes("police") || moyensPublics.includes("dirif")) {
-      root.appendChild(el("h2", { class: "section-title", text: "Services publics" }));
-      if (moyensPublics.includes("police")) {
-        root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Police" }));
-        const grid = el("div", { class: "row", style: "margin-bottom:12px" });
-        [["sepresente","Se présente"],["presente","Présentée à..."]].forEach(([id,label]) => {
-          const b = el("button", { class: "card card-half" + (policeChoix === id ? " active" : ""), text: label });
-          b.addEventListener("click", () => { policeChoix = policeChoix === id ? null : id; editedMessage = null; render(root); });
-          grid.appendChild(b);
-        });
-        root.appendChild(grid);
-        if (policeChoix === "presente") {
-          const wrap = labeledInput("Heure de présentation", "ex: 1530", policeHeure, v => { policeHeure = v; editedMessage = null; });
-          wrap.querySelector("input").addEventListener("blur", () => render(root));
-          root.appendChild(wrap);
+    const anyService = moyensPublics.includes("police") || moyensPublics.includes("dirif") || moyensPublics.includes("escorte") || eqType === "civ";
+    if (anyService) {
+      root.appendChild(el("h2", { class: "section-title", text: "Moyens engagés" }));
+      if (moyensPublics.includes("police")) renderServiceChoice(root, "police", "Police");
+      if (moyensPublics.includes("escorte")) renderServiceChoice(root, "escorte", "Escorte motorisée");
+      if (eqType === "civ") {
+        if (svc.eqMed.announcedBefore) {
+          root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Équipe médicale " + (hopital || "") + " déjà annoncée" + (svc.eqMed.heure ? " à " + svc.eqMed.heure : "") + "." }));
+        } else {
+          root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Équipe médicale civile" }));
+          root.appendChild(labeledInput("Équipe médicale ...", "Lariboisière", hopital, v => { hopital = v; editedMessage = null; }));
+          renderServiceChoice(root, "eqMed", "Présence");
         }
       }
-      if (moyensPublics.includes("dirif")) {
-        root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "DiRIF" }));
-        const grid = el("div", { class: "row", style: "margin-bottom:12px" });
-        [["sepresente","Se présente"],["presente","Présentée à..."]].forEach(([id,label]) => {
-          const b = el("button", { class: "card card-half" + (dirifChoix === id ? " active" : ""), text: label });
-          b.addEventListener("click", () => { dirifChoix = dirifChoix === id ? null : id; editedMessage = null; render(root); });
-          grid.appendChild(b);
-        });
-        root.appendChild(grid);
-        if (dirifChoix === "presente") {
-          const wrap = labeledInput("Heure de présentation", "ex: 1530", dirifHeure, v => { dirifHeure = v; editedMessage = null; });
-          wrap.querySelector("input").addEventListener("blur", () => render(root));
-          root.appendChild(wrap);
-        }
-      }
-    }
-
-    if (eqType === "civ") {
-      root.appendChild(el("h2", { class: "section-title", text: "Équipe médicale civile" }));
-      root.appendChild(labeledInput("Équipe médicale ...", "Lariboisière", hopital, v => { hopital = v; editedMessage = null; }));
-      [["sepresente","Se présente"],["presente","Présentée à..."]].forEach(([id,label]) => {
-        const b = el("button", { class: "card" + (eqChoix === id ? " active" : ""), text: label });
-        b.addEventListener("click", () => { eqChoix = eqChoix === id ? null : id; editedMessage = null; render(root); });
-        root.appendChild(b);
-      });
-      if (eqChoix === "presente") {
-        const wrap = labeledInput("Heure de présentation", "ex: 1530", eqHeure, v => { eqHeure = v; editedMessage = null; });
-        wrap.querySelector("input").addEventListener("blur", () => render(root));
-        root.appendChild(wrap);
-      }
+      if (moyensPublics.includes("dirif")) renderServiceChoice(root, "dirif", "DiRIF");
     }
 
     root.appendChild(el("h2", { class: "section-title", text: "Victime(s)" }));
     victimes.forEach((v, i) => renderVictimeBlock(root, i));
     const addBtn = el("button", { class: "btn-dashed", text: "+ Ajouter une victime" });
-    addBtn.addEventListener("click", () => { victimes.push({ sexe: null, statut: "aucun", service: null, gravite: "acr" }); editedMessage = null; render(root); });
+    addBtn.addEventListener("click", () => { victimes.push({ sexe: null, statut: "aucun", service: null, devenirGravite: null, transportChoix: null, dispositionChoix: null }); editedMessage = null; render(root); });
     root.appendChild(addBtn);
 
     root.appendChild(el("h2", { class: "section-title", text: "Message" }));
@@ -1864,7 +1909,11 @@ const Renseignement = (function () {
       saved = true;
       const iv = getIntervention(ivId);
       addMessageToIntervention(ivId, (iv.motif || "") + " — renseignement", currentMessage());
-      saveIvData(ivId, { victimes: JSON.parse(JSON.stringify(victimes)), eqType: eqType, hopital: hopital, moyensPublics: moyensPublics, perimetre: perimetre });
+      const presence = {};
+      ["police","dirif","escorte","eqMed"].forEach(key => {
+        if (svc[key].choix) presence[key] = { choix: svc[key].choix, heure: svc[key].heure };
+      });
+      saveIvData(ivId, { victimes: JSON.parse(JSON.stringify(victimes)), eqType: eqType, hopital: hopital, moyensPublics: moyensPublics, perimetre: perimetre, presence: presence });
       render(root);
     });
     root.appendChild(saveBtn);
