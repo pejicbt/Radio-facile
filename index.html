@@ -306,6 +306,10 @@ function renderMessageEditor(container, opts) {
   }
 }
 
+function precedentButton(onClick) {
+  return el("button", { class: "btn-secondary", text: "◂ Précédent", style: "width:100%; margin-bottom:16px", onclick: onClick });
+}
+
 const specialNouns = {
   enfant: { m: "enfant", f: "enfant" },
   nourrisson: { m: "nourrisson", f: "nourrisson" },
@@ -323,6 +327,36 @@ function victimeNoun(v) {
     return txt;
   }
   return v.sexe === "femme" ? "une femme" : "un homme";
+}
+function decesNoun(v) {
+  if (v.statut !== "aucun" && specialNouns[v.statut]) return victimeNoun(v) + " décédé" + (v.sexe === "femme" ? "e" : "");
+  return v.sexe === "femme" ? "une décédée" : "un décédé";
+}
+function denombrementText(victimes, label) {
+  const n = victimes.length;
+  if (n === 0) return "dénombrement terrain " + label + " : aucune victime recensée";
+  if (n === 1) {
+    const v = victimes[0];
+    const g = v.gravite || "acr";
+    if (g === "acr") return "dénombrement terrain " + label + " : " + victimeNoun(v) + " en arrêt cardio-respiratoire";
+    if (g === "dcd") return "dénombrement terrain " + label + " : " + decesNoun(v);
+    const gravTxt = "urgence " + (g === "ua" ? "absolue" : "relative");
+    if (v.statut !== "aucun" && specialNouns[v.statut]) return "dénombrement terrain " + label + " : " + victimeNoun(v) + ", " + gravTxt;
+    return "dénombrement terrain " + label + " : une " + gravTxt;
+  }
+  const uaCount = victimes.filter(v => (v.gravite || "acr") === "ua").length;
+  const urCount = victimes.filter(v => (v.gravite || "acr") === "ur").length;
+  const acrCount = victimes.filter(v => (v.gravite || "acr") === "acr").length;
+  const dcdCount = victimes.filter(v => (v.gravite || "acr") === "dcd").length;
+  let parts = [];
+  if (dcdCount > 0) parts.push((dcdCount === 1 ? "un" : dcdCount) + " décédé" + (dcdCount > 1 ? "s" : ""));
+  if (acrCount > 0) parts.push((acrCount === 1 ? "une" : acrCount) + " personne" + (acrCount > 1 ? "s" : "") + " en arrêt cardio-respiratoire");
+  if (uaCount > 0) parts.push((uaCount === 1 ? "une" : uaCount) + " urgence" + (uaCount > 1 ? "s" : "") + " absolue" + (uaCount > 1 ? "s" : ""));
+  if (urCount > 0) parts.push((urCount === 1 ? "une" : urCount) + " urgence" + (urCount > 1 ? "s" : "") + " relative" + (urCount > 1 ? "s" : ""));
+  const specials = victimes.filter(v => v.statut !== "aucun").map(v => victimeNoun(v));
+  let txt = "dénombrement terrain " + label + " : " + parts.join(", ");
+  if (specials.length > 0) txt += " dont " + specials.join(", ");
+  return txt;
 }
 
 const moyenIcons = {
@@ -459,6 +493,12 @@ function updateIntervention(iv) {
   if (idx >= 0) list[idx] = iv;
   saveInterventions(list);
 }
+function saveIvData(ivId, data) {
+  const iv = getIntervention(ivId);
+  if (!iv) return;
+  iv.data = Object.assign({}, iv.data, data);
+  updateIntervention(iv);
+}
 function addMessageToIntervention(ivId, type, text) {
   const iv = getIntervention(ivId);
   if (!iv) return;
@@ -523,6 +563,7 @@ function renderApp() {
   else if (Router.view === "acr") ACR.render(root);
   else if (Router.view === "avp") AVP.render(root);
   else if (Router.view === "demande-seule") DemandeSeule.render(root);
+  else if (Router.view === "renseignement") Renseignement.render(root);
 }
 
 function renderHome(root) {
@@ -617,6 +658,7 @@ function renderAccount(root) {
 function renderNewAxe(root) {
   root.appendChild(el("div", { class: "crumb", text: "Nouvelle intervention" }));
   root.appendChild(el("h1", { class: "page-title", text: "Choisir l'axe" }));
+  root.appendChild(precedentButton(() => goTo("home")));
   const sav = el("button", { class: "card", text: "Secours à victime" });
   sav.addEventListener("click", () => goTo("new-sav"));
   root.appendChild(sav);
@@ -627,6 +669,7 @@ function renderNewAxe(root) {
 function renderNewSav(root) {
   root.appendChild(el("div", { class: "crumb", text: "Nouvelle intervention > Secours à victime" }));
   root.appendChild(el("h1", { class: "page-title", text: "Choisir le motif" }));
+  root.appendChild(precedentButton(() => goTo("new-axe")));
   const acr = el("button", { class: "card", text: "Arrêt cardio-respiratoire (ACR)" });
   acr.addEventListener("click", () => {
     const iv = createIntervention("sav");
@@ -681,9 +724,9 @@ function renderInterventionDetail(root) {
       const demandeBtn = el("button", { class: "card", text: "Message de demande", style: "margin-top:0" });
       demandeBtn.addEventListener("click", () => { DemandeSeule.start(iv); goTo("demande-seule"); });
       root.appendChild(demandeBtn);
-      const rensBtn = el("button", { class: "card disabled", text: "Message de renseignement (bientôt)" });
+      const rensBtn = el("button", { class: "card", text: "Message de renseignement" });
+      rensBtn.addEventListener("click", () => { Renseignement.start(iv); goTo("renseignement"); });
       root.appendChild(rensBtn);
-      root.appendChild(el("div", { class: "note", text: "Le message de renseignement (rappel des éléments encore en attente) arrive dans une prochaine version." }));
     }
     const closeBtn = el("button", { class: "btn-ghost", text: "Clôturer l'intervention" });
     closeBtn.addEventListener("click", () => { iv.status = "cloturee"; updateIntervention(iv); goTo("home"); });
@@ -769,6 +812,7 @@ const DemandeSeule = (function () {
     renderHeader(root, true);
     root.appendChild(el("div", { class: "crumb", text: "Message de demande" }));
     root.appendChild(el("h1", { class: "page-title", text: "Moyens à engager" }));
+    root.appendChild(precedentButton(() => goTo("intervention-detail")));
     const listWrap = el("div", {});
     renderMoyensList(listWrap, moyens, () => { editedMessage = null; saved = false; render(root); }, () => { editedMessage = null; saved = false; });
     root.appendChild(listWrap);
@@ -964,6 +1008,7 @@ const ACR = (function () {
 
     if (step === 0) {
       root.appendChild(el("h1", { class: "page-title", text: "Contexte de découverte" }));
+      root.appendChild(precedentButton(() => goTo("intervention-detail")));
       contextes.forEach(c => {
         const b = el("button", { class: "card" + (state.contexte === c.id ? " active" : ""), text: c.label });
         b.addEventListener("click", () => {
@@ -1091,19 +1136,23 @@ const ACR = (function () {
       radioBtn.addEventListener("click", () => showRadioView(currentMessage, "acr"));
       root.appendChild(radioBtn);
       const saveBtn = el("button", { class: "btn-secondary", text: state.saved ? "Enregistré" : "Enregistrer", style: "width:100%; margin-bottom:8px" });
-      saveBtn.addEventListener("click", () => { state.saved = true; addMessageToIntervention(ivId, "ACR", currentMessage()); render(root); });
+      saveBtn.addEventListener("click", () => {
+        state.saved = true;
+        addMessageToIntervention(ivId, "ACR", currentMessage());
+        saveIvData(ivId, { victimes: JSON.parse(JSON.stringify(state.victimes)), eqType: state.eqType, hopital: state.hopital });
+        render(root);
+      });
       root.appendChild(saveBtn);
       if (state.saved) {
         const iv = getIntervention(ivId);
         root.appendChild(el("h2", { class: "section-title", text: "Suite" }));
-        if (iv && iv.messages.length <= 1) {
-          const nb = el("button", { class: "card", text: "+ Nouveau message" });
-          nb.addEventListener("click", () => { reset(ivId); render(root); });
-          root.appendChild(nb);
-        } else if (iv) {
+        if (iv) {
           const db = el("button", { class: "card", text: "Message de demande" });
           db.addEventListener("click", () => { DemandeSeule.start(iv); goTo("demande-seule"); });
           root.appendChild(db);
+          const rb = el("button", { class: "card", text: "Message de renseignement" });
+          rb.addEventListener("click", () => { Renseignement.start(iv); goTo("renseignement"); });
+          root.appendChild(rb);
         }
         const cb = el("button", { class: "btn-ghost", text: "Clôturer l'intervention" });
         cb.addEventListener("click", () => { if (iv) { iv.status = "cloturee"; updateIntervention(iv); } goTo("home"); });
@@ -1232,34 +1281,7 @@ const AVP = (function () {
     if (totalActors === 1) txt += used[0].genre === "f" ? " seule" : " seul";
     return txt;
   }
-  function decesNoun(v) {
-    if (v.statut !== "aucun" && specialNouns[v.statut]) return victimeNoun(v) + " décédé" + (v.sexe === "femme" ? "e" : "");
-    return v.sexe === "femme" ? "une décédée" : "un décédé";
-  }
-  function bilanText() {
-    const n = state.victimes.length;
-    if (n === 1) {
-      const v = state.victimes[0];
-      if (v.gravite === "acr") return "dénombrement terrain provisoire : " + victimeNoun(v) + " en arrêt cardio-respiratoire";
-      if (v.gravite === "dcd") return "dénombrement terrain provisoire : " + decesNoun(v);
-      const gravTxt = "urgence " + (v.gravite === "ua" ? "absolue" : "relative");
-      if (v.statut !== "aucun" && specialNouns[v.statut]) return "dénombrement terrain provisoire : " + victimeNoun(v) + ", " + gravTxt;
-      return "dénombrement terrain provisoire : une " + gravTxt;
-    }
-    const uaCount = state.victimes.filter(v => v.gravite === "ua").length;
-    const urCount = state.victimes.filter(v => v.gravite === "ur").length;
-    const acrCount = state.victimes.filter(v => v.gravite === "acr").length;
-    const dcdCount = state.victimes.filter(v => v.gravite === "dcd").length;
-    let parts = [];
-    if (dcdCount > 0) parts.push((dcdCount === 1 ? "un" : dcdCount) + " décédé" + (dcdCount > 1 ? "s" : ""));
-    if (acrCount > 0) parts.push((acrCount === 1 ? "une" : acrCount) + " personne" + (acrCount > 1 ? "s" : "") + " en arrêt cardio-respiratoire");
-    if (uaCount > 0) parts.push((uaCount === 1 ? "une" : uaCount) + " urgence" + (uaCount > 1 ? "s" : "") + " absolue" + (uaCount > 1 ? "s" : ""));
-    if (urCount > 0) parts.push((urCount === 1 ? "une" : urCount) + " urgence" + (urCount > 1 ? "s" : "") + " relative" + (urCount > 1 ? "s" : ""));
-    const specials = state.victimes.filter(v => v.statut !== "aucun").map(v => victimeNoun(v));
-    let txt = "dénombrement terrain provisoire : " + parts.join(", ");
-    if (specials.length > 0) txt += " dont " + specials.join(", ");
-    return txt;
-  }
+  function bilanText() { return denombrementText(state.victimes, "provisoire"); }
   function generateMessage() {
     const moyensLabels = state.moyens.filter(m => m.checked).sort((a,b) => a.priorite - b.priorite).map(m => moyenLabelWithQty(m));
     let demandePart = "";
@@ -1378,6 +1400,7 @@ const AVP = (function () {
 
     if (step === 0) {
       root.appendChild(el("h1", { class: "page-title", text: "Contexte" }));
+      root.appendChild(precedentButton(() => goTo("intervention-detail")));
       [["classique","Accident classique"],["voierapide","Voie rapide / périphérique"]].forEach(([id,label]) => {
         const b = el("button", { class: "card" + (state.contexte === id ? " active" : ""), text: label });
         b.addEventListener("click", () => { state.contexte = id; state.editedMessage = null; step++; render(root); });
@@ -1567,19 +1590,23 @@ const AVP = (function () {
       radioBtn.addEventListener("click", () => showRadioView(currentMessage, "avp"));
       root.appendChild(radioBtn);
       const saveBtn = el("button", { class: "btn-secondary", text: state.saved ? "Enregistré" : "Enregistrer", style: "width:100%" });
-      saveBtn.addEventListener("click", () => { state.saved = true; addMessageToIntervention(ivId, "AVP", currentMessage()); render(root); });
+      saveBtn.addEventListener("click", () => {
+        state.saved = true;
+        addMessageToIntervention(ivId, "AVP", currentMessage());
+        saveIvData(ivId, { victimes: JSON.parse(JSON.stringify(state.victimes)), eqType: state.eqType, hopital: state.hopital });
+        render(root);
+      });
       root.appendChild(saveBtn);
       if (state.saved) {
         const iv = getIntervention(ivId);
         root.appendChild(el("h2", { class: "section-title", text: "Suite" }));
-        if (iv && iv.messages.length <= 1) {
-          const nb = el("button", { class: "card", text: "+ Nouveau message" });
-          nb.addEventListener("click", () => { reset(ivId); render(root); });
-          root.appendChild(nb);
-        } else if (iv) {
+        if (iv) {
           const db = el("button", { class: "card", text: "Message de demande" });
           db.addEventListener("click", () => { DemandeSeule.start(iv); goTo("demande-seule"); });
           root.appendChild(db);
+          const rb = el("button", { class: "card", text: "Message de renseignement" });
+          rb.addEventListener("click", () => { Renseignement.start(iv); goTo("renseignement"); });
+          root.appendChild(rb);
         }
         const cb = el("button", { class: "btn-ghost", text: "Clôturer l'intervention" });
         cb.addEventListener("click", () => { if (iv) { iv.status = "cloturee"; updateIntervention(iv); } goTo("home"); });
@@ -1589,6 +1616,170 @@ const AVP = (function () {
   }
 
   return { reset, render };
+})();
+
+/* ============================================================
+   MODULE MESSAGE DE RENSEIGNEMENT (tiroirs fermés : services publics,
+   équipe médicale civile, victime(s), dénombrement terrain définitif)
+   ============================================================ */
+const Renseignement = (function () {
+  let ivId = null;
+  let victimes = [];
+  let eqType = null, hopital = "";
+  let policeSurPlace = false, dirifSurPlace = false;
+  let eqChoix = null, eqHeure = "";
+  let saved = false, editing = false, editedMessage = null;
+
+  function start(iv) {
+    ivId = iv.id;
+    const data = iv.data || {};
+    victimes = data.victimes && data.victimes.length
+      ? JSON.parse(JSON.stringify(data.victimes)).map(v => Object.assign({ gravite: "acr" }, v))
+      : [ { sexe: null, statut: "aucun", service: null, gravite: "acr" } ];
+    eqType = data.eqType || null;
+    hopital = data.hopital || "";
+    policeSurPlace = false; dirifSurPlace = false;
+    eqChoix = null; eqHeure = "";
+    saved = false; editing = false; editedMessage = null;
+  }
+
+  function generateMessage() {
+    const parts = [];
+    const pubTxts = [];
+    if (policeSurPlace) pubTxts.push("Police sur place");
+    if (dirifSurPlace) pubTxts.push("DiRIF sur place");
+    if (pubTxts.length > 0) parts.push(pubTxts.join(", ") + ".");
+    if (eqType === "civ" && eqChoix) {
+      if (eqChoix === "presente") parts.push("Équipe médicale " + (hopital || "[hôpital]") + " présentée" + (eqHeure ? " à " + eqHeure : "") + ".");
+      else if (eqChoix === "sepresente") parts.push("Équipe médicale " + (hopital || "[hôpital]") + " se présente.");
+    }
+    parts.push(denombrementText(victimes, "définitif") + ".");
+    return parts.join(" ");
+  }
+  function currentMessage() { return editedMessage !== null ? editedMessage : generateMessage(); }
+
+  function renderVictimeBlock(container, index) {
+    const v = victimes[index];
+    const wrap = el("div", { class: "victime-block" });
+    const hdr = el("div", { class: "victime-header" }, [ el("span", { text: "Victime " + (index + 1) }) ]);
+    if (victimes.length > 1) {
+      hdr.appendChild(el("button", { class: "remove-link", text: "Retirer", onclick: () => { victimes.splice(index, 1); editedMessage = null; render(document.getElementById("app-root")); } }));
+    }
+    wrap.appendChild(hdr);
+    wrap.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Sexe" }));
+    const sexeGrid = el("div", { class: "row", style: "margin-bottom:12px" });
+    ["homme","femme"].forEach(s => {
+      const b = el("button", { class: "card card-half" + (v.sexe === s ? " active" : ""), text: s[0].toUpperCase() + s.slice(1) });
+      b.addEventListener("click", () => { v.sexe = s; editedMessage = null; render(document.getElementById("app-root")); });
+      sexeGrid.appendChild(b);
+    });
+    wrap.appendChild(sexeGrid);
+    wrap.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Statut particulier" }));
+    const statuts = [
+      {id:"aucun",label:"Aucun"},{id:"enfant",label:"Enfant"},{id:"nourrisson",label:"Nourrisson"},
+      {id:"militaireCorps",label:"Militaire du corps"},{id:"militaire",label:"Militaire"},{id:"policier",label:"Policier"}
+    ];
+    const statutGrid = el("div", { class: "grid-2", style: "margin-bottom:8px" });
+    statuts.forEach(s => {
+      const b = el("button", { class: "card" + (v.statut === s.id ? " active" : ""), text: s.label });
+      b.style.marginBottom = "0";
+      b.addEventListener("click", () => { v.statut = s.id; if (!["militaireCorps","militaire","policier"].includes(s.id)) v.service = null; editedMessage = null; render(document.getElementById("app-root")); });
+      statutGrid.appendChild(b);
+    });
+    wrap.appendChild(statutGrid);
+    if (["militaireCorps","militaire","policier"].includes(v.statut)) {
+      const svcGrid = el("div", { class: "row", style: "margin-bottom:12px" });
+      const svcO = el("button", { class: "card card-half" + (v.service === true ? " active" : ""), text: "En position de service" });
+      svcO.addEventListener("click", () => { v.service = true; editedMessage = null; render(document.getElementById("app-root")); });
+      const svcN = el("button", { class: "card card-half" + (v.service === false ? " active" : ""), text: "En position de repos" });
+      svcN.addEventListener("click", () => { v.service = false; editedMessage = null; render(document.getElementById("app-root")); });
+      svcGrid.appendChild(svcO); svcGrid.appendChild(svcN);
+      wrap.appendChild(svcGrid);
+    }
+    wrap.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Issue définitive" }));
+    const gravGrid = el("div", { class: "grid-2", style: "margin-bottom:0" });
+    [["ua","Urgence absolue"],["ur","Urgence relative"],["acr","Arrêt cardio-respiratoire"],["dcd","Décédée"]].forEach(([id,label]) => {
+      const b = el("button", { class: "card" + (v.gravite === id ? " active" : ""), text: label });
+      b.style.marginBottom = "0";
+      b.addEventListener("click", () => { v.gravite = id; editedMessage = null; render(document.getElementById("app-root")); });
+      gravGrid.appendChild(b);
+    });
+    wrap.appendChild(gravGrid);
+    container.appendChild(wrap);
+  }
+
+  function render(root) {
+    root.innerHTML = "";
+    renderHeader(root, true);
+    root.appendChild(el("div", { class: "crumb", text: "Message de renseignement" }));
+    root.appendChild(el("h1", { class: "page-title", text: "Éléments à transmettre" }));
+    root.appendChild(precedentButton(() => goTo("intervention-detail")));
+
+    root.appendChild(el("h2", { class: "section-title", text: "Services publics" }));
+    const pubGrid = el("div", { class: "row", style: "margin-bottom:16px" });
+    const policeBtn = el("button", { class: "card card-half" + (policeSurPlace ? " active" : ""), text: "Police sur place" });
+    policeBtn.addEventListener("click", () => { policeSurPlace = !policeSurPlace; editedMessage = null; render(root); });
+    const dirifBtn = el("button", { class: "card card-half" + (dirifSurPlace ? " active" : ""), text: "DiRIF sur place" });
+    dirifBtn.addEventListener("click", () => { dirifSurPlace = !dirifSurPlace; editedMessage = null; render(root); });
+    pubGrid.appendChild(policeBtn); pubGrid.appendChild(dirifBtn);
+    root.appendChild(pubGrid);
+
+    if (eqType === "civ") {
+      root.appendChild(el("h2", { class: "section-title", text: "Équipe médicale civile" }));
+      root.appendChild(labeledInput("Équipe médicale ...", "Lariboisière", hopital, v => { hopital = v; editedMessage = null; }));
+      [["sepresente","Se présente"],["presente","Présentée à..."]].forEach(([id,label]) => {
+        const b = el("button", { class: "card" + (eqChoix === id ? " active" : ""), text: label });
+        b.addEventListener("click", () => { eqChoix = eqChoix === id ? null : id; editedMessage = null; render(root); });
+        root.appendChild(b);
+      });
+      if (eqChoix === "presente") {
+        root.appendChild(labeledInput("Heure de présentation", "ex: 1530", eqHeure, v => { eqHeure = v; editedMessage = null; }));
+      }
+    }
+
+    root.appendChild(el("h2", { class: "section-title", text: "Victime(s)" }));
+    victimes.forEach((v, i) => renderVictimeBlock(root, i));
+    const addBtn = el("button", { class: "btn-dashed", text: "+ Ajouter une victime" });
+    addBtn.addEventListener("click", () => { victimes.push({ sexe: null, statut: "aucun", service: null, gravite: "acr" }); editedMessage = null; render(root); });
+    root.appendChild(addBtn);
+
+    root.appendChild(el("h2", { class: "section-title", text: "Message" }));
+    renderMessageEditor(root, {
+      getText: currentMessage,
+      isEditing: () => editing,
+      setEditing: v => { editing = v; },
+      setEdited: v => { editedMessage = v; },
+      isEdited: () => editedMessage !== null,
+      rerender: () => render(root)
+    });
+
+    const radioBtn = el("button", { class: "btn-primary", text: "Visualiser en grand", style: "width:100%; margin-bottom:8px" });
+    radioBtn.addEventListener("click", () => showRadioView(currentMessage, "renseignement"));
+    root.appendChild(radioBtn);
+    const saveBtn = el("button", { class: "btn-secondary", text: saved ? "Enregistré" : "Enregistrer", style: "width:100%" });
+    saveBtn.addEventListener("click", () => {
+      saved = true;
+      const iv = getIntervention(ivId);
+      addMessageToIntervention(ivId, (iv.motif || "") + " — renseignement", currentMessage());
+      saveIvData(ivId, { victimes: JSON.parse(JSON.stringify(victimes)), eqType: eqType, hopital: hopital });
+      render(root);
+    });
+    root.appendChild(saveBtn);
+    if (saved) {
+      root.appendChild(el("h2", { class: "section-title", text: "Suite" }));
+      const db = el("button", { class: "card", text: "Message de demande" });
+      db.addEventListener("click", () => { DemandeSeule.start(getIntervention(ivId)); goTo("demande-seule"); });
+      root.appendChild(db);
+      const rb = el("button", { class: "card", text: "Nouveau renseignement" });
+      rb.addEventListener("click", () => { start(getIntervention(ivId)); render(root); });
+      root.appendChild(rb);
+      const cb = el("button", { class: "btn-ghost", text: "Clôturer l'intervention" });
+      cb.addEventListener("click", () => { const iv2 = getIntervention(ivId); if (iv2) { iv2.status = "cloturee"; updateIntervention(iv2); } goTo("home"); });
+      root.appendChild(cb);
+    }
+  }
+
+  return { start, render };
 })();
 
 renderApp();
