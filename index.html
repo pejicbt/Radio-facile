@@ -533,6 +533,11 @@ function saveIvData(ivId, data) {
   iv.data = Object.assign({}, iv.data, data);
   updateIntervention(iv);
 }
+function unionMoyensDemandes(ivId, newIds) {
+  const iv = getIntervention(ivId);
+  const existing = (iv && iv.data && iv.data.moyensDemandes) || [];
+  return Array.from(new Set(existing.concat(newIds)));
+}
 function addMessageToIntervention(ivId, type, text) {
   const iv = getIntervention(ivId);
   if (!iv) return;
@@ -705,7 +710,8 @@ function renderNewSav(root) {
   root.appendChild(el("div", { class: "crumb", text: "Nouvelle intervention > Secours à victime" }));
   root.appendChild(el("h1", { class: "page-title", text: "Choisir le motif" }));
   root.appendChild(precedentButton(() => goTo("new-axe")));
-  const acr = el("button", { class: "card", text: "Arrêt cardio-respiratoire (ACR)" });
+  const grid = el("div", { class: "row" });
+  const acr = el("button", { class: "card card-half", text: "ACR" });
   acr.addEventListener("click", () => {
     const iv = createIntervention("sav");
     iv.motif = "ACR"; updateIntervention(iv);
@@ -713,8 +719,7 @@ function renderNewSav(root) {
     ACR.reset(iv.id);
     goTo("acr");
   });
-  root.appendChild(acr);
-  const avp = el("button", { class: "card", text: "Accident voie publique (AVP)" });
+  const avp = el("button", { class: "card card-half", text: "AVP" });
   avp.addEventListener("click", () => {
     const iv = createIntervention("sav");
     iv.motif = "AVP"; updateIntervention(iv);
@@ -722,7 +727,8 @@ function renderNewSav(root) {
     AVP.reset(iv.id);
     goTo("avp");
   });
-  root.appendChild(avp);
+  grid.appendChild(acr); grid.appendChild(avp);
+  root.appendChild(grid);
 }
 
 function renderInterventionDetail(root) {
@@ -837,6 +843,7 @@ const DemandeSeule = (function () {
   let moyens = [];
   let ivId = null;
   let step = 0;
+  let previouslyRequested = [];
   let saved = false;
   let editing = false;
   let editedMessage = null;
@@ -844,13 +851,19 @@ const DemandeSeule = (function () {
   function start(iv) {
     ivId = iv.id;
     moyens = iv.motif === "AVP" ? moyensTemplateAVP() : moyensTemplateACR();
+    previouslyRequested = (iv.data && iv.data.moyensDemandes) || [];
     step = 0; saved = false; editing = false; editedMessage = null;
   }
 
   function generateMessage() {
-    const labels = moyens.filter(m => m.checked).sort((a,b) => (a.priorite||0) - (b.priorite||0)).map(m => moyenLabelWithQty(m));
-    if (labels.length === 0) return "Je demande...";
-    return "Je demande " + labels.join(", ") + "." + coordinationSuffix(moyens);
+    const checked = moyens.filter(m => m.checked).sort((a,b) => (a.priorite||0) - (b.priorite||0));
+    if (checked.length === 0) return "Je demande...";
+    const newOnes = checked.filter(m => !previouslyRequested.includes(m.id)).map(m => moyenLabelWithQty(m));
+    const repeatOnes = checked.filter(m => previouslyRequested.includes(m.id)).map(m => moyenLabelWithQty(m));
+    let msg = "";
+    if (newOnes.length > 0) msg += "Je demande " + newOnes.join(", ") + ".";
+    if (repeatOnes.length > 0) msg += (msg ? " " : "") + "Je redemande " + repeatOnes.join(", ") + ".";
+    return msg + coordinationSuffix(moyens);
   }
   function currentMessage() { return editedMessage !== null ? editedMessage : generateMessage(); }
 
@@ -888,7 +901,13 @@ const DemandeSeule = (function () {
     radioBtn.addEventListener("click", () => showRadioView(currentMessage, "demande-seule"));
     root.appendChild(radioBtn);
     const saveBtn = el("button", { class: "btn-secondary", text: saved ? "Enregistré" : "Enregistrer", style: "width:100%" });
-    saveBtn.addEventListener("click", () => { saved = true; addMessageToIntervention(ivId, (getIntervention(ivId).motif || "") + " — demande", currentMessage()); render(root); });
+    saveBtn.addEventListener("click", () => {
+      saved = true;
+      addMessageToIntervention(ivId, (getIntervention(ivId).motif || "") + " — demande", currentMessage());
+      const checkedIds = moyens.filter(m => m.checked).map(m => m.id);
+      saveIvData(ivId, { moyensDemandes: unionMoyensDemandes(ivId, checkedIds) });
+      render(root);
+    });
     root.appendChild(saveBtn);
     if (saved) {
       renderMiniHistory(root, ivId);
@@ -896,6 +915,9 @@ const DemandeSeule = (function () {
       const db = el("button", { class: "card", text: "Nouvelle demande" });
       db.addEventListener("click", () => { start(getIntervention(ivId)); render(root); });
       root.appendChild(db);
+      const rb = el("button", { class: "card", text: "Message de renseignement" });
+      rb.addEventListener("click", () => { Renseignement.start(getIntervention(ivId)); goTo("renseignement"); });
+      root.appendChild(rb);
       const cb = el("button", { class: "btn-ghost", text: "Clôturer l'intervention" });
       cb.addEventListener("click", () => { const iv = getIntervention(ivId); if (iv) { iv.status = "cloturee"; updateIntervention(iv); } goTo("home"); });
       root.appendChild(cb);
@@ -971,7 +993,7 @@ const ACR = (function () {
 
     let eqPart = "";
     if (state.eqType === "civ") {
-      eqPart = state.eqChoix === "presente" ? " Équipe médicale " + (state.hopital || "[hôpital]") + " présentée sur les lieux." : state.eqChoix === "attente" ? " Attendons équipe médicale." : "";
+      eqPart = state.eqChoix === "presente" ? " Équipe médicale " + (state.hopital || "[hôpital]") + " présente avant notre arrivée." : state.eqChoix === "attente" ? " Attendons équipe médicale." : "";
     } else if (state.eqType === "ar" && state.eqChoix === "attente") {
       eqPart = " Attendons équipe médicale.";
     }
@@ -1197,6 +1219,7 @@ const ACR = (function () {
         saveIvData(ivId, {
           victimes: JSON.parse(JSON.stringify(state.victimes)), eqType: state.eqType, hopital: state.hopital,
           moyensPublics: state.moyens.filter(m => m.section === "public" && m.checked).map(m => m.id),
+          moyensDemandes: unionMoyensDemandes(ivId, state.moyens.filter(m => m.checked).map(m => m.id)),
           perimetre: false
         });
         render(root);
@@ -1367,7 +1390,7 @@ const AVP = (function () {
     } else if (state.circulation === "interrompue") mesuresPart = "circulation totalement interrompue";
     let eqPart = "";
     if (totalUA() > 0 && state.eqType === "civ") {
-      eqPart = state.eqChoix === "presente" ? "équipe médicale " + (state.hopital || "[hôpital]") + " présentée sur les lieux" : state.eqChoix === "attente" ? "attendons équipe médicale" : "";
+      eqPart = state.eqChoix === "presente" ? "équipe médicale " + (state.hopital || "[hôpital]") + " présente avant notre arrivée" : state.eqChoix === "attente" ? "attendons équipe médicale" : "";
     } else if (totalUA() > 0 && state.eqType === "ar" && state.eqChoix === "attente") {
       eqPart = "attendons équipe médicale";
     }
@@ -1656,6 +1679,7 @@ const AVP = (function () {
         saveIvData(ivId, {
           victimes: JSON.parse(JSON.stringify(state.victimes)), eqType: state.eqType, hopital: state.hopital,
           moyensPublics: state.moyens.filter(m => m.section === "public" && m.checked).map(m => m.id),
+          moyensDemandes: unionMoyensDemandes(ivId, state.moyens.filter(m => m.checked).map(m => m.id)),
           perimetre: !!state.perimetre
         });
         render(root);
@@ -1689,10 +1713,12 @@ const AVP = (function () {
    ============================================================ */
 const Renseignement = (function () {
   let ivId = null;
+  let step = 0;
   let victimes = [];
   let eqType = null, hopital = "";
   let moyensPublics = [], perimetre = false;
   let svc = { police: {}, dirif: {}, escorte: {}, eqMed: {} };
+  let operationTerminee = false;
   let saved = false, editing = false, editedMessage = null;
 
   function start(iv) {
@@ -1711,7 +1737,8 @@ const Renseignement = (function () {
         ? { choix: prior.choix, heure: prior.heure || "", announcedBefore: true }
         : { choix: null, heure: "", announcedBefore: false };
     });
-    saved = false; editing = false; editedMessage = null;
+    operationTerminee = false;
+    step = 0; saved = false; editing = false; editedMessage = null;
   }
 
   function victimClause(v, idx, total, ctx) {
@@ -1740,20 +1767,13 @@ const Renseignement = (function () {
 
   function generateMessage() {
     const ctx = { policeConsumed: false, eqMedConsumed: false };
+    const victimClauses = victimes.map((v, i) => victimClause(v, i, victimes.length, ctx)).filter(Boolean);
+
+    const perimetreApplies = perimetre && moyensPublics.includes("police") && svc.police.choix === "presente";
+    const policeConsumedOverall = ctx.policeConsumed || perimetreApplies;
+
     const parts = [];
-    victimes.forEach((v, i) => {
-      const c = victimClause(v, i, victimes.length, ctx);
-      if (c) parts.push(c);
-    });
-    if (perimetre && moyensPublics.includes("police") && svc.police.choix === "presente") {
-      let txt = "périmètre de sécurité laissé à disposition de la police";
-      if (!ctx.policeConsumed && !svc.police.announcedBefore) {
-        txt += " présentée" + (svc.police.heure ? " à " + svc.police.heure : "");
-        ctx.policeConsumed = true;
-      }
-      parts.push(txt);
-    }
-    if (moyensPublics.includes("police") && svc.police.choix && !svc.police.announcedBefore && !ctx.policeConsumed) {
+    if (moyensPublics.includes("police") && svc.police.choix && !svc.police.announcedBefore && !policeConsumedOverall) {
       parts.push(svc.police.choix === "presente" ? "police présentée" + (svc.police.heure ? " à " + svc.police.heure : "") : "police se présente");
     }
     if (moyensPublics.includes("dirif") && svc.dirif.choix && !svc.dirif.announcedBefore) {
@@ -1765,9 +1785,24 @@ const Renseignement = (function () {
     if (eqType === "civ" && svc.eqMed.choix && !svc.eqMed.announcedBefore && !ctx.eqMedConsumed) {
       parts.push(svc.eqMed.choix === "presente" ? "équipe médicale " + (hopital || "[hôpital]") + " présentée" + (svc.eqMed.heure ? " à " + svc.eqMed.heure : "") : "équipe médicale " + (hopital || "[hôpital]") + " se présente");
     }
-    if (parts.length === 0) return "…";
-    const msg = parts.join(", ");
-    return msg.charAt(0).toUpperCase() + msg.slice(1) + ".";
+
+    parts.push(...victimClauses);
+
+    if (perimetreApplies) {
+      let txt = "périmètre de sécurité laissé à disposition de la police";
+      if (!ctx.policeConsumed && !svc.police.announcedBefore) {
+        txt += " présentée" + (svc.police.heure ? " à " + svc.police.heure : "");
+      }
+      parts.push(txt);
+    }
+
+    let msg = "";
+    if (parts.length > 0) {
+      msg = parts.join(", ");
+      msg = msg.charAt(0).toUpperCase() + msg.slice(1) + ".";
+    }
+    if (operationTerminee) msg += (msg ? " " : "") + "Opération terminée.";
+    return msg || "…";
   }
   function currentMessage() { return editedMessage !== null ? editedMessage : generateMessage(); }
 
@@ -1865,33 +1900,48 @@ const Renseignement = (function () {
     root.innerHTML = "";
     renderHeader(root, true);
     root.appendChild(el("div", { class: "crumb", text: "Message de renseignement" }));
-    root.appendChild(el("h1", { class: "page-title", text: "Éléments à transmettre" }));
-    root.appendChild(precedentButton(() => goTo("intervention-detail")));
 
-    const anyService = moyensPublics.includes("police") || moyensPublics.includes("dirif") || moyensPublics.includes("escorte") || eqType === "civ";
-    if (anyService) {
-      root.appendChild(el("h2", { class: "section-title", text: "Moyens engagés" }));
-      if (moyensPublics.includes("police")) renderServiceChoice(root, "police", "Police");
-      if (moyensPublics.includes("escorte")) renderServiceChoice(root, "escorte", "Escorte motorisée");
-      if (eqType === "civ") {
-        if (svc.eqMed.announcedBefore) {
-          root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Équipe médicale " + (hopital || "") + " déjà annoncée" + (svc.eqMed.heure ? " à " + svc.eqMed.heure : "") + "." }));
-        } else {
-          root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Équipe médicale civile" }));
-          root.appendChild(labeledInput("Équipe médicale ...", "Lariboisière", hopital, v => { hopital = v; editedMessage = null; }));
-          renderServiceChoice(root, "eqMed", "Présence");
+    if (step === 0) {
+      root.appendChild(el("h1", { class: "page-title", text: "Éléments à transmettre" }));
+      root.appendChild(precedentButton(() => goTo("intervention-detail")));
+
+      const anyService = moyensPublics.includes("police") || moyensPublics.includes("dirif") || moyensPublics.includes("escorte") || eqType === "civ";
+      if (anyService) {
+        root.appendChild(el("h2", { class: "section-title", text: "Moyens engagés" }));
+        if (moyensPublics.includes("police")) renderServiceChoice(root, "police", "Police");
+        if (moyensPublics.includes("escorte")) renderServiceChoice(root, "escorte", "Escorte motorisée");
+        if (eqType === "civ") {
+          if (svc.eqMed.announcedBefore) {
+            root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Équipe médicale " + (hopital || "") + " déjà annoncée" + (svc.eqMed.heure ? " à " + svc.eqMed.heure : "") + "." }));
+          } else {
+            root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Équipe médicale civile" }));
+            root.appendChild(labeledInput("Équipe médicale ...", "Lariboisière", hopital, v => { hopital = v; editedMessage = null; }));
+            renderServiceChoice(root, "eqMed", "Présence");
+          }
         }
+        if (moyensPublics.includes("dirif")) renderServiceChoice(root, "dirif", "DiRIF");
       }
-      if (moyensPublics.includes("dirif")) renderServiceChoice(root, "dirif", "DiRIF");
+
+      root.appendChild(el("h2", { class: "section-title", text: "Victime(s)" }));
+      victimes.forEach((v, i) => renderVictimeBlock(root, i));
+      const addBtn = el("button", { class: "btn-dashed", text: "+ Ajouter une victime" });
+      addBtn.addEventListener("click", () => { victimes.push({ sexe: null, statut: "aucun", service: null, devenirGravite: null, transportChoix: null, dispositionChoix: null }); editedMessage = null; render(root); });
+      root.appendChild(addBtn);
+
+      const opBtn = el("button", { class: "card" + (operationTerminee ? " active" : ""), text: "Opération terminée", style: "margin-top:8px" });
+      opBtn.addEventListener("click", () => { operationTerminee = !operationTerminee; editedMessage = null; render(root); });
+      root.appendChild(opBtn);
+
+      const nav = el("div", { class: "nav-buttons" });
+      const next = el("button", { class: "btn-primary", text: "Suivant" });
+      next.addEventListener("click", () => { editedMessage = null; step = 1; render(root); });
+      nav.appendChild(next);
+      root.appendChild(nav);
+      return;
     }
 
-    root.appendChild(el("h2", { class: "section-title", text: "Victime(s)" }));
-    victimes.forEach((v, i) => renderVictimeBlock(root, i));
-    const addBtn = el("button", { class: "btn-dashed", text: "+ Ajouter une victime" });
-    addBtn.addEventListener("click", () => { victimes.push({ sexe: null, statut: "aucun", service: null, devenirGravite: null, transportChoix: null, dispositionChoix: null }); editedMessage = null; render(root); });
-    root.appendChild(addBtn);
-
-    root.appendChild(el("h2", { class: "section-title", text: "Message" }));
+    root.appendChild(el("h1", { class: "page-title", text: "Message généré" }));
+    root.appendChild(precedentButton(() => { step = 0; render(root); }));
     renderMessageEditor(root, {
       getText: currentMessage,
       isEditing: () => editing,
@@ -1907,28 +1957,36 @@ const Renseignement = (function () {
     const saveBtn = el("button", { class: "btn-secondary", text: saved ? "Enregistré" : "Enregistrer", style: "width:100%" });
     saveBtn.addEventListener("click", () => {
       saved = true;
-      const iv = getIntervention(ivId);
-      addMessageToIntervention(ivId, (iv.motif || "") + " — renseignement", currentMessage());
+      const motif = getIntervention(ivId).motif || "";
+      addMessageToIntervention(ivId, motif + " — renseignement", currentMessage());
       const presence = {};
       ["police","dirif","escorte","eqMed"].forEach(key => {
         if (svc[key].choix) presence[key] = { choix: svc[key].choix, heure: svc[key].heure };
       });
       saveIvData(ivId, { victimes: JSON.parse(JSON.stringify(victimes)), eqType: eqType, hopital: hopital, moyensPublics: moyensPublics, perimetre: perimetre, presence: presence });
+      if (operationTerminee) {
+        const ivFresh = getIntervention(ivId);
+        if (ivFresh) { ivFresh.status = "cloturee"; updateIntervention(ivFresh); }
+      }
       render(root);
     });
     root.appendChild(saveBtn);
     if (saved) {
       renderMiniHistory(root, ivId);
-      root.appendChild(el("h2", { class: "section-title", text: "Suite" }));
-      const db = el("button", { class: "card", text: "Message de demande" });
-      db.addEventListener("click", () => { DemandeSeule.start(getIntervention(ivId)); goTo("demande-seule"); });
-      root.appendChild(db);
-      const rb = el("button", { class: "card", text: "Nouveau renseignement" });
-      rb.addEventListener("click", () => { start(getIntervention(ivId)); render(root); });
-      root.appendChild(rb);
-      const cb = el("button", { class: "btn-ghost", text: "Clôturer l'intervention" });
-      cb.addEventListener("click", () => { const iv2 = getIntervention(ivId); if (iv2) { iv2.status = "cloturee"; updateIntervention(iv2); } goTo("home"); });
-      root.appendChild(cb);
+      if (operationTerminee) {
+        root.appendChild(el("div", { class: "note", style: "text-align:center; margin-top:12px;", text: "Intervention clôturée." }));
+      } else {
+        root.appendChild(el("h2", { class: "section-title", text: "Suite" }));
+        const db = el("button", { class: "card", text: "Message de demande" });
+        db.addEventListener("click", () => { DemandeSeule.start(getIntervention(ivId)); goTo("demande-seule"); });
+        root.appendChild(db);
+        const rb = el("button", { class: "card", text: "Nouveau renseignement" });
+        rb.addEventListener("click", () => { start(getIntervention(ivId)); render(root); });
+        root.appendChild(rb);
+        const cb = el("button", { class: "btn-ghost", text: "Clôturer l'intervention" });
+        cb.addEventListener("click", () => { const iv2 = getIntervention(ivId); if (iv2) { iv2.status = "cloturee"; updateIntervention(iv2); } goTo("home"); });
+        root.appendChild(cb);
+      }
     }
   }
 
