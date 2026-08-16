@@ -139,6 +139,26 @@
     font-size: 12px; color: var(--text-muted); background: none; border: none;
     cursor: pointer; padding: 0;
   }
+  .precedent-link {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 13px; color: var(--text-muted); background: none; border: none;
+    cursor: pointer; padding: 2px 0; margin: -6px 0 14px;
+  }
+  .precedent-link:hover { color: var(--text-secondary); }
+  .crumb-step {
+    font: inherit; color: inherit; background: none; border: none; padding: 0; margin: 0;
+    cursor: default;
+  }
+  .crumb-step.done { cursor: pointer; color: var(--text-secondary); }
+  .crumb-step.done:hover { color: var(--accent); }
+  .crumb-step.current { color: var(--text-secondary); font-weight: 700; }
+  @keyframes slideDownFade {
+    from { opacity: 0; transform: translateY(-14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .history-drop { animation: slideDownFade .4s ease; }
+  .axe-sav { border-color: #5b9bd5; background: rgba(91,155,213,0.12); color: #8ec4f0; }
+  .axe-inc { border-color: #d97b4f; background: rgba(217,123,79,0.12); color: #f0a884; }
   .moyen-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
   .moyen-chip {
     padding: 12px 10px; border-radius: 12px; cursor: pointer;
@@ -307,7 +327,19 @@ function renderMessageEditor(container, opts) {
 }
 
 function precedentButton(onClick) {
-  return el("button", { class: "btn-secondary", text: "◂ Précédent", style: "width:100%; margin-bottom:16px", onclick: onClick });
+  return el("button", { class: "precedent-link", text: "‹ Précédent", onclick: onClick });
+}
+function renderStepCrumb(root, prefix, stepLabels, currentStep, onJump) {
+  const crumb = el("div", { class: "crumb" });
+  crumb.appendChild(document.createTextNode(prefix + " › "));
+  stepLabels.forEach((label, i) => {
+    if (i > 0) crumb.appendChild(document.createTextNode(" › "));
+    const cls = "crumb-step" + (i === currentStep ? " current" : i < currentStep ? " done" : "");
+    const btn = el("button", { class: cls, text: label });
+    if (i < currentStep) btn.addEventListener("click", () => onJump(i));
+    crumb.appendChild(btn);
+  });
+  root.appendChild(crumb);
 }
 
 const specialNouns = {
@@ -381,6 +413,8 @@ function renderMoyensList(container, moyens, onChange, resetEdited) {
       subContainer.appendChild(grid);
     } else if (m.id === "escorte") {
       const wrap = labeledInput("Destination hospitalière (optionnel)", "Necker", m.escorteHopital || "", v => { m.escorteHopital = v; if (resetEdited) resetEdited(); });
+      const input = wrap.querySelector("input");
+      input.addEventListener("blur", () => onChange());
       subContainer.appendChild(wrap);
     } else if (m.id === "helico") {
       const grid = el("div", { class: "row", style: "margin-bottom:8px" });
@@ -392,7 +426,9 @@ function renderMoyensList(container, moyens, onChange, resetEdited) {
       });
       subContainer.appendChild(grid);
       if (m.helicoMotif === "poser") {
-        subContainer.appendChild(labeledInput("Adresse de la zone de poser", "43 rue Westermeyer", m.helicoAdresse || "", v => { m.helicoAdresse = v; if (resetEdited) resetEdited(); }));
+        const adresseWrap = labeledInput("Adresse de la zone de poser", "43 rue Westermeyer", m.helicoAdresse || "", v => { m.helicoAdresse = v; if (resetEdited) resetEdited(); });
+        adresseWrap.querySelector("input").addEventListener("blur", () => onChange());
+        subContainer.appendChild(adresseWrap);
       }
     }
   }
@@ -429,15 +465,13 @@ function renderMoyensList(container, moyens, onChange, resetEdited) {
         chip.appendChild(qtyRow);
       }
       grid.appendChild(chip);
-    });
-    container.appendChild(grid);
-    items.forEach(m => {
       if (m.checked && hasSub(m)) {
-        const sub = el("div", { class: "mea-sub" });
+        const sub = el("div", { class: "mea-sub moyen-sub-full" });
         renderSub(sub, m);
-        container.appendChild(sub);
+        grid.appendChild(sub);
       }
     });
+    container.appendChild(grid);
   }
   renderSection("Moyens brigade", moyens.filter(m => m.section === "brigade"));
   renderSection("Services publics", moyens.filter(m => m.section === "public"));
@@ -659,11 +693,12 @@ function renderNewAxe(root) {
   root.appendChild(el("div", { class: "crumb", text: "Nouvelle intervention" }));
   root.appendChild(el("h1", { class: "page-title", text: "Choisir l'axe" }));
   root.appendChild(precedentButton(() => goTo("home")));
-  const sav = el("button", { class: "card", text: "Secours à victime" });
+  const grid = el("div", { class: "row" });
+  const sav = el("button", { class: "card card-half axe-sav", text: "SAV" });
   sav.addEventListener("click", () => goTo("new-sav"));
-  root.appendChild(sav);
-  const inc = el("button", { class: "card disabled", text: "Incendie (bientôt)" });
-  root.appendChild(inc);
+  const inc = el("button", { class: "card card-half axe-inc disabled", text: "INC (bientôt)" });
+  grid.appendChild(sav); grid.appendChild(inc);
+  root.appendChild(grid);
 }
 
 function renderNewSav(root) {
@@ -756,6 +791,17 @@ function showRadioView(getText, backView, heureLabel) {
 function timeStamp(label) {
   return el("div", { class: "note", style: "text-align:center; margin-top:16px; margin-bottom:0; color:var(--text-muted);", text: label });
 }
+function renderMiniHistory(root, ivId) {
+  const iv = getIntervention(ivId);
+  if (!iv || iv.messages.length === 0) return;
+  root.appendChild(el("h2", { class: "section-title", text: "Historique" }));
+  iv.messages.slice().reverse().forEach((msg, i) => {
+    root.appendChild(el("div", { class: "history-item" + (i === 0 ? " history-drop" : "") }, [
+      el("div", { class: "time", text: msg.display + " — " + msg.type }),
+      el("div", { class: "snippet", text: msg.text.length > 140 ? msg.text.slice(0, 140) + "…" : msg.text })
+    ]));
+  });
+}
 
 function moyensTemplateACR() {
   return [
@@ -765,7 +811,7 @@ function moyensTemplateACR() {
     { id: "mea", label: "Moyen élévateur aérien", short: "MEA", checked: false, hasQty: true, qty: 1, hasMea: true, meaMotif: null, section: "brigade" },
     { id: "brisevue", label: "Écran brise-vue", short: "BRISE-VUE", checked: false, hasQty: true, qty: 1, section: "brigade" },
     { id: "multiparam", label: "Multiparamétrique", short: "TOUCH7", checked: false, hasQty: true, qty: 1, section: "brigade" },
-    { id: "escorte", label: "Escorte motorisée", short: "ESCORTE MOTO", checked: false, hasQty: false, escorteHopital: "", section: "brigade" },
+    { id: "escorte", label: "Escorte motorisée", short: "ESCORTE MOTO", checked: false, hasQty: false, escorteHopital: "", section: "public" },
     { id: "grimp", label: "GRIMP", short: "GRIMP", checked: false, hasQty: true, qty: 1, section: "brigade" },
     { id: "bariatrique", label: "Véhicule transport bariatrique", short: "VTB", checked: false, hasQty: true, qty: 1, section: "brigade" },
     { id: "manoeuvreForceEquipe", label: "Équipe manœuvre de force", short: "ÉQ. FORCE", checked: false, hasQty: true, qty: 1, section: "brigade" },
@@ -790,6 +836,7 @@ function moyensTemplateACR() {
 const DemandeSeule = (function () {
   let moyens = [];
   let ivId = null;
+  let step = 0;
   let saved = false;
   let editing = false;
   let editedMessage = null;
@@ -797,7 +844,7 @@ const DemandeSeule = (function () {
   function start(iv) {
     ivId = iv.id;
     moyens = iv.motif === "AVP" ? moyensTemplateAVP() : moyensTemplateACR();
-    saved = false; editing = false; editedMessage = null;
+    step = 0; saved = false; editing = false; editedMessage = null;
   }
 
   function generateMessage() {
@@ -811,13 +858,23 @@ const DemandeSeule = (function () {
     root.innerHTML = "";
     renderHeader(root, true);
     root.appendChild(el("div", { class: "crumb", text: "Message de demande" }));
-    root.appendChild(el("h1", { class: "page-title", text: "Moyens à engager" }));
-    root.appendChild(precedentButton(() => goTo("intervention-detail")));
-    const listWrap = el("div", {});
-    renderMoyensList(listWrap, moyens, () => { editedMessage = null; saved = false; render(root); }, () => { editedMessage = null; saved = false; });
-    root.appendChild(listWrap);
 
-    root.appendChild(el("h2", { class: "section-title", text: "Message" }));
+    if (step === 0) {
+      root.appendChild(el("h1", { class: "page-title", text: "Moyens à engager" }));
+      root.appendChild(precedentButton(() => goTo("intervention-detail")));
+      const listWrap = el("div", {});
+      renderMoyensList(listWrap, moyens, () => render(root), () => {});
+      root.appendChild(listWrap);
+      const nav = el("div", { class: "nav-buttons" });
+      const next = el("button", { class: "btn-primary", text: "Suivant" });
+      next.addEventListener("click", () => { editedMessage = null; saved = false; step = 1; render(root); });
+      nav.appendChild(next);
+      root.appendChild(nav);
+      return;
+    }
+
+    root.appendChild(el("h1", { class: "page-title", text: "Message généré" }));
+    root.appendChild(precedentButton(() => { step = 0; render(root); }));
     renderMessageEditor(root, {
       getText: currentMessage,
       isEditing: () => editing,
@@ -834,6 +891,7 @@ const DemandeSeule = (function () {
     saveBtn.addEventListener("click", () => { saved = true; addMessageToIntervention(ivId, (getIntervention(ivId).motif || "") + " — demande", currentMessage()); render(root); });
     root.appendChild(saveBtn);
     if (saved) {
+      renderMiniHistory(root, ivId);
       root.appendChild(el("h2", { class: "section-title", text: "Suite" }));
       const db = el("button", { class: "card", text: "Nouvelle demande" });
       db.addEventListener("click", () => { start(getIntervention(ivId)); render(root); });
@@ -1003,7 +1061,7 @@ const ACR = (function () {
     if (cloture) return renderCloture(root);
 
     const crumbs = ["Contexte","Moyens","Lieu","Victime(s)","Équipe médicale","Message"];
-    root.appendChild(el("div", { class: "crumb", text: "SAV > ACR > " + crumbs[step] }));
+    renderStepCrumb(root, "SAV › ACR", crumbs, step, i => { step = i; render(root); });
     root.appendChild(el("div", { class: "progress-track" }, [ el("div", { class: "progress-fill", style: "width:" + ((step+1)/(totalSteps()+1)*100) + "%" }) ]));
 
     if (step === 0) {
@@ -1139,12 +1197,17 @@ const ACR = (function () {
       saveBtn.addEventListener("click", () => {
         state.saved = true;
         addMessageToIntervention(ivId, "ACR", currentMessage());
-        saveIvData(ivId, { victimes: JSON.parse(JSON.stringify(state.victimes)), eqType: state.eqType, hopital: state.hopital });
+        saveIvData(ivId, {
+          victimes: JSON.parse(JSON.stringify(state.victimes)), eqType: state.eqType, hopital: state.hopital,
+          moyensPublics: state.moyens.filter(m => m.section === "public" && m.checked).map(m => m.id),
+          perimetre: false
+        });
         render(root);
       });
       root.appendChild(saveBtn);
       if (state.saved) {
         const iv = getIntervention(ivId);
+        renderMiniHistory(root, ivId);
         root.appendChild(el("h2", { class: "section-title", text: "Suite" }));
         if (iv) {
           const db = el("button", { class: "card", text: "Message de demande" });
@@ -1222,7 +1285,7 @@ function moyensTemplateAVP() {
     { id: "mea", label: "Moyen élévateur aérien", short: "MEA", checked: false, priorite: 4, hasQty: true, qty: 1, hasMea: true, meaMotif: null, section: "brigade" },
     { id: "brisevue", label: "Écran brise-vue", short: "BRISE-VUE", checked: false, priorite: 5, hasQty: true, qty: 1, section: "brigade" },
     { id: "multiparam", label: "Multiparamétrique", short: "TOUCH7", checked: false, priorite: 6, hasQty: true, qty: 1, section: "brigade" },
-    { id: "escorte", label: "Escorte motorisée", short: "ESCORTE MOTO", checked: false, priorite: 7, hasQty: false, escorteHopital: "", section: "brigade" },
+    { id: "escorte", label: "Escorte motorisée", short: "ESCORTE MOTO", checked: false, priorite: 7, hasQty: false, escorteHopital: "", section: "public" },
     { id: "grimp", label: "GRIMP", short: "GRIMP", checked: false, priorite: 8, hasQty: true, qty: 1, section: "brigade" },
     { id: "bariatrique", label: "Véhicule transport bariatrique", short: "VTB", checked: false, priorite: 9, hasQty: true, qty: 1, section: "brigade" },
     { id: "manoeuvreForceEquipe", label: "Équipe manœuvre de force", short: "ÉQ. FORCE", checked: false, priorite: 10, hasQty: true, qty: 1, section: "brigade" },
@@ -1395,7 +1458,7 @@ const AVP = (function () {
     renderHeader(root, true);
 
     const crumbs = ["Contexte","Véhicules","Victime(s)","Moyens","Lieu","Mesures","Équipe médicale","Message"];
-    root.appendChild(el("div", { class: "crumb", text: "SAV > AVP > " + crumbs[step] }));
+    renderStepCrumb(root, "SAV › AVP", crumbs, step, i => { step = i; render(root); });
     root.appendChild(el("div", { class: "progress-track" }, [ el("div", { class: "progress-fill", style: "width:" + ((step+1)/(totalSteps()+1)*100) + "%" }) ]));
 
     if (step === 0) {
@@ -1593,12 +1656,17 @@ const AVP = (function () {
       saveBtn.addEventListener("click", () => {
         state.saved = true;
         addMessageToIntervention(ivId, "AVP", currentMessage());
-        saveIvData(ivId, { victimes: JSON.parse(JSON.stringify(state.victimes)), eqType: state.eqType, hopital: state.hopital });
+        saveIvData(ivId, {
+          victimes: JSON.parse(JSON.stringify(state.victimes)), eqType: state.eqType, hopital: state.hopital,
+          moyensPublics: state.moyens.filter(m => m.section === "public" && m.checked).map(m => m.id),
+          perimetre: !!state.perimetre
+        });
         render(root);
       });
       root.appendChild(saveBtn);
       if (state.saved) {
         const iv = getIntervention(ivId);
+        renderMiniHistory(root, ivId);
         root.appendChild(el("h2", { class: "section-title", text: "Suite" }));
         if (iv) {
           const db = el("button", { class: "card", text: "Message de demande" });
@@ -1626,7 +1694,9 @@ const Renseignement = (function () {
   let ivId = null;
   let victimes = [];
   let eqType = null, hopital = "";
-  let policeSurPlace = false, dirifSurPlace = false;
+  let moyensPublics = [], perimetre = false;
+  let policeChoix = null, policeHeure = "";
+  let dirifChoix = null, dirifHeure = "";
   let eqChoix = null, eqHeure = "";
   let saved = false, editing = false, editedMessage = null;
 
@@ -1638,17 +1708,23 @@ const Renseignement = (function () {
       : [ { sexe: null, statut: "aucun", service: null, gravite: "acr" } ];
     eqType = data.eqType || null;
     hopital = data.hopital || "";
-    policeSurPlace = false; dirifSurPlace = false;
+    moyensPublics = data.moyensPublics || [];
+    perimetre = !!data.perimetre;
+    policeChoix = null; policeHeure = "";
+    dirifChoix = null; dirifHeure = "";
     eqChoix = null; eqHeure = "";
     saved = false; editing = false; editedMessage = null;
   }
 
   function generateMessage() {
     const parts = [];
-    const pubTxts = [];
-    if (policeSurPlace) pubTxts.push("Police sur place");
-    if (dirifSurPlace) pubTxts.push("DiRIF sur place");
-    if (pubTxts.length > 0) parts.push(pubTxts.join(", ") + ".");
+    if (moyensPublics.includes("police") && policeChoix) {
+      parts.push(policeChoix === "presente" ? "Police présentée" + (policeHeure ? " à " + policeHeure : "") + "." : "Police se présente.");
+      if (perimetre && policeChoix === "presente") parts.push("Périmètre de sécurité laissé à disposition de la police.");
+    }
+    if (moyensPublics.includes("dirif") && dirifChoix) {
+      parts.push(dirifChoix === "presente" ? "DiRIF présenté" + (dirifHeure ? " à " + dirifHeure : "") + "." : "DiRIF se présente.");
+    }
     if (eqType === "civ" && eqChoix) {
       if (eqChoix === "presente") parts.push("Équipe médicale " + (hopital || "[hôpital]") + " présentée" + (eqHeure ? " à " + eqHeure : "") + ".");
       else if (eqChoix === "sepresente") parts.push("Équipe médicale " + (hopital || "[hôpital]") + " se présente.");
@@ -1715,14 +1791,39 @@ const Renseignement = (function () {
     root.appendChild(el("h1", { class: "page-title", text: "Éléments à transmettre" }));
     root.appendChild(precedentButton(() => goTo("intervention-detail")));
 
-    root.appendChild(el("h2", { class: "section-title", text: "Services publics" }));
-    const pubGrid = el("div", { class: "row", style: "margin-bottom:16px" });
-    const policeBtn = el("button", { class: "card card-half" + (policeSurPlace ? " active" : ""), text: "Police sur place" });
-    policeBtn.addEventListener("click", () => { policeSurPlace = !policeSurPlace; editedMessage = null; render(root); });
-    const dirifBtn = el("button", { class: "card card-half" + (dirifSurPlace ? " active" : ""), text: "DiRIF sur place" });
-    dirifBtn.addEventListener("click", () => { dirifSurPlace = !dirifSurPlace; editedMessage = null; render(root); });
-    pubGrid.appendChild(policeBtn); pubGrid.appendChild(dirifBtn);
-    root.appendChild(pubGrid);
+    if (moyensPublics.includes("police") || moyensPublics.includes("dirif")) {
+      root.appendChild(el("h2", { class: "section-title", text: "Services publics" }));
+      if (moyensPublics.includes("police")) {
+        root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Police" }));
+        const grid = el("div", { class: "row", style: "margin-bottom:12px" });
+        [["sepresente","Se présente"],["presente","Présentée à..."]].forEach(([id,label]) => {
+          const b = el("button", { class: "card card-half" + (policeChoix === id ? " active" : ""), text: label });
+          b.addEventListener("click", () => { policeChoix = policeChoix === id ? null : id; editedMessage = null; render(root); });
+          grid.appendChild(b);
+        });
+        root.appendChild(grid);
+        if (policeChoix === "presente") {
+          const wrap = labeledInput("Heure de présentation", "ex: 1530", policeHeure, v => { policeHeure = v; editedMessage = null; });
+          wrap.querySelector("input").addEventListener("blur", () => render(root));
+          root.appendChild(wrap);
+        }
+      }
+      if (moyensPublics.includes("dirif")) {
+        root.appendChild(el("div", { class: "note", style: "margin-top:0", text: "DiRIF" }));
+        const grid = el("div", { class: "row", style: "margin-bottom:12px" });
+        [["sepresente","Se présente"],["presente","Présentée à..."]].forEach(([id,label]) => {
+          const b = el("button", { class: "card card-half" + (dirifChoix === id ? " active" : ""), text: label });
+          b.addEventListener("click", () => { dirifChoix = dirifChoix === id ? null : id; editedMessage = null; render(root); });
+          grid.appendChild(b);
+        });
+        root.appendChild(grid);
+        if (dirifChoix === "presente") {
+          const wrap = labeledInput("Heure de présentation", "ex: 1530", dirifHeure, v => { dirifHeure = v; editedMessage = null; });
+          wrap.querySelector("input").addEventListener("blur", () => render(root));
+          root.appendChild(wrap);
+        }
+      }
+    }
 
     if (eqType === "civ") {
       root.appendChild(el("h2", { class: "section-title", text: "Équipe médicale civile" }));
@@ -1733,7 +1834,9 @@ const Renseignement = (function () {
         root.appendChild(b);
       });
       if (eqChoix === "presente") {
-        root.appendChild(labeledInput("Heure de présentation", "ex: 1530", eqHeure, v => { eqHeure = v; editedMessage = null; }));
+        const wrap = labeledInput("Heure de présentation", "ex: 1530", eqHeure, v => { eqHeure = v; editedMessage = null; });
+        wrap.querySelector("input").addEventListener("blur", () => render(root));
+        root.appendChild(wrap);
       }
     }
 
@@ -1761,11 +1864,12 @@ const Renseignement = (function () {
       saved = true;
       const iv = getIntervention(ivId);
       addMessageToIntervention(ivId, (iv.motif || "") + " — renseignement", currentMessage());
-      saveIvData(ivId, { victimes: JSON.parse(JSON.stringify(victimes)), eqType: eqType, hopital: hopital });
+      saveIvData(ivId, { victimes: JSON.parse(JSON.stringify(victimes)), eqType: eqType, hopital: hopital, moyensPublics: moyensPublics, perimetre: perimetre });
       render(root);
     });
     root.appendChild(saveBtn);
     if (saved) {
+      renderMiniHistory(root, ivId);
       root.appendChild(el("h2", { class: "section-title", text: "Suite" }));
       const db = el("button", { class: "card", text: "Message de demande" });
       db.addEventListener("click", () => { DemandeSeule.start(getIntervention(ivId)); goTo("demande-seule"); });
