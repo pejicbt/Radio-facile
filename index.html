@@ -152,6 +152,11 @@
   .crumb-step.done { cursor: pointer; color: var(--text-secondary); }
   .crumb-step.done:hover { color: var(--accent); }
   .crumb-step.current { color: var(--text-secondary); font-weight: 700; }
+  .victime-field-toggle {
+    display: block; width: 100%; text-align: left; font-size: 12px; color: var(--text-muted);
+    background: none; border: none; cursor: pointer; padding: 4px 0; margin: 0;
+  }
+  .victime-field-toggle:hover { color: var(--text-secondary); }
   @keyframes slideDownFade {
     from { opacity: 0; transform: translateY(-14px); }
     to { opacity: 1; transform: translateY(0); }
@@ -261,10 +266,15 @@
   .history-item .snippet { font-size: 13px; color: var(--text-secondary); line-height: 1.4; }
   .empty-state { font-size: 13px; color: var(--text-muted); text-align: center; padding: 32px 0; }
   .disabled-note { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  #app-version {
+    position: fixed; left: 0; right: 0; bottom: 6px; text-align: center;
+    font-size: 10px; color: var(--text-muted); opacity: 0.55; pointer-events: none;
+  }
 </style>
 </head>
 <body>
 <div id="app-root"></div>
+<div id="app-version">V1.1</div>
 
 <script>
 /* ---------- Retour haptique (Android uniquement — iOS Safari ne le permet pas) ---------- */
@@ -360,33 +370,30 @@ function victimeNoun(v) {
   }
   return v.sexe === "femme" ? "une femme" : "un homme";
 }
-function decesNoun(v) {
-  if (v.statut !== "aucun" && specialNouns[v.statut]) return victimeNoun(v) + " décédé" + (v.sexe === "femme" ? "e" : "");
-  return v.sexe === "femme" ? "une décédée" : "un décédé";
-}
 function denombrementText(victimes, label) {
   const n = victimes.length;
   if (n === 0) return "dénombrement terrain " + label + " : aucune victime recensée";
-  if (n === 1) {
-    const v = victimes[0];
-    const g = v.gravite || "acr";
-    if (g === "acr") return "dénombrement terrain " + label + " : " + victimeNoun(v) + " en arrêt cardio-respiratoire";
-    if (g === "dcd") return "dénombrement terrain " + label + " : " + decesNoun(v);
-    const gravTxt = "urgence " + (g === "ua" ? "absolue" : "relative");
-    if (v.statut !== "aucun" && specialNouns[v.statut]) return "dénombrement terrain " + label + " : " + victimeNoun(v) + ", " + gravTxt;
-    return "dénombrement terrain " + label + " : une " + gravTxt;
-  }
-  const uaCount = victimes.filter(v => (v.gravite || "acr") === "ua").length;
-  const urCount = victimes.filter(v => (v.gravite || "acr") === "ur").length;
-  const acrCount = victimes.filter(v => (v.gravite || "acr") === "acr").length;
   const dcdCount = victimes.filter(v => (v.gravite || "acr") === "dcd").length;
-  let parts = [];
-  if (dcdCount > 0) parts.push((dcdCount === 1 ? "un" : dcdCount) + " décédé" + (dcdCount > 1 ? "s" : ""));
-  if (acrCount > 0) parts.push((acrCount === 1 ? "une" : acrCount) + " personne" + (acrCount > 1 ? "s" : "") + " en arrêt cardio-respiratoire");
-  if (uaCount > 0) parts.push((uaCount === 1 ? "une" : uaCount) + " urgence" + (uaCount > 1 ? "s" : "") + " absolue" + (uaCount > 1 ? "s" : ""));
-  if (urCount > 0) parts.push((urCount === 1 ? "une" : urCount) + " urgence" + (urCount > 1 ? "s" : "") + " relative" + (urCount > 1 ? "s" : ""));
+  const uaCount = victimes.filter(v => (v.gravite || "acr") === "ua").length;
+  const acrCount = victimes.filter(v => (v.gravite || "acr") === "acr").length;
+  const urCount = victimes.filter(v => (v.gravite || "acr") === "ur").length;
+  const uaTotal = uaCount + acrCount;
+
+  const parts = [];
+  if (dcdCount > 0) parts.push((dcdCount === 1 ? "un" : dcdCount) + " décès certain" + (dcdCount > 1 ? "s" : ""));
+  if (uaTotal > 0) {
+    let txt = (uaTotal === 1 ? "une" : uaTotal) + " victime" + (uaTotal > 1 ? "s" : "") + " UA";
+    if (acrCount > 0) txt += " dont " + (acrCount === 1 ? "une" : acrCount) + " en ACR";
+    parts.push(txt);
+  }
+  if (urCount > 0) parts.push((urCount === 1 ? "une" : urCount) + " UR");
+
+  let txt = "dénombrement terrain " + label + " : ";
+  if (parts.length === 0) txt += "aucune victime recensée";
+  else if (parts.length === 1) txt += parts[0];
+  else txt += parts.slice(0, -1).join(", ") + ", et " + parts[parts.length - 1];
+
   const specials = victimes.filter(v => v.statut !== "aucun").map(v => victimeNoun(v));
-  let txt = "dénombrement terrain " + label + " : " + parts.join(", ");
   if (specials.length > 0) txt += " dont " + specials.join(", ");
   return txt;
 }
@@ -430,9 +437,18 @@ function renderMoyensList(container, moyens, onChange, resetEdited) {
         adresseWrap.querySelector("input").addEventListener("blur", () => onChange());
         subContainer.appendChild(adresseWrap);
       }
+    } else if (m.id === "eqmed" || m.id === "medical") {
+      const grid = el("div", { class: "row" });
+      [[true,"Coordination contactée"],[false,"Coordination non contactée"]].forEach(([val,lbl]) => {
+        const b = el("button", { class: "card card-half" + (m.coordinationContactee === val ? " active" : ""), text: lbl });
+        b.style.fontSize = "13px"; b.style.padding = "10px";
+        b.addEventListener("click", () => { m.coordinationContactee = m.coordinationContactee === val ? null : val; onChange(); });
+        grid.appendChild(b);
+      });
+      subContainer.appendChild(grid);
     }
   }
-  function hasSub(m) { return m.hasMea || m.id === "escorte" || m.id === "helico"; }
+  function hasSub(m) { return m.hasMea || m.id === "escorte" || m.id === "helico" || m.id === "eqmed" || m.id === "medical"; }
 
   function renderSection(label, items) {
     if (items.length === 0) return;
@@ -493,8 +509,11 @@ function moyenLabelWithQty(m) {
   return txt;
 }
 function coordinationSuffix(moyens) {
-  const m = moyens.find(x => x.id === "eqmed");
-  return (m && m.checked) ? " Coordination médicale non contactée." : "";
+  const m = moyens.find(x => (x.id === "eqmed" || x.id === "medical") && x.checked);
+  if (!m) return "";
+  if (m.coordinationContactee === true) return " Coordination médicale contactée.";
+  if (m.coordinationContactee === false) return " Coordination médicale non contactée.";
+  return "";
 }
 
 /* ============================================================
@@ -1725,7 +1744,11 @@ const Renseignement = (function () {
     ivId = iv.id;
     const data = iv.data || {};
     victimes = (data.victimes && data.victimes.length ? data.victimes : [ { sexe: null, statut: "aucun", service: null } ])
-      .map(v => ({ sexe: v.sexe, statut: v.statut, service: v.service, devenirGravite: null, transportChoix: null, dispositionChoix: null }));
+      .map(v => ({
+        sexe: v.sexe, statut: v.statut, service: v.service,
+        devenirGravite: v.devenirGravite || null, transportChoix: v.transportChoix || null, dispositionChoix: v.dispositionChoix || null,
+        _sexeOpen: !v.sexe, _statutOpen: false
+      }));
     eqType = data.eqType || null;
     hopital = data.hopital || "";
     moyensPublics = data.moyensPublics || [];
@@ -1741,18 +1764,29 @@ const Renseignement = (function () {
     step = 0; saved = false; editing = false; editedMessage = null;
   }
 
+  function escorteFold(txt, ctx) {
+    if (!svc.escorte.choix) return txt;
+    if (svc.escorte.choix === "presente") {
+      txt += " sous escorte motorisée présentée" + (!svc.escorte.announcedBefore && svc.escorte.heure ? " à " + svc.escorte.heure : "");
+      if (!svc.escorte.announcedBefore) ctx.escorteConsumed = true;
+    } else {
+      txt += " sous escorte motorisée qui se présente";
+    }
+    return txt;
+  }
+
   function victimClause(v, idx, total, ctx) {
     const label = total > 1 ? "victime " + (idx + 1) : "victime";
     if (v.devenirGravite === "ua" && v.transportChoix === "equipe") {
-      let txt = label + " évacuée par équipe médicale";
+      let txt = label + " UA évacuée par équipe médicale";
       if (eqType === "civ") txt += " " + (hopital || "[hôpital]");
       if (svc.eqMed.choix === "presente" && !svc.eqMed.announcedBefore) {
         txt += " présentée" + (svc.eqMed.heure ? " à " + svc.eqMed.heure : "");
         ctx.eqMedConsumed = true;
       }
-      return txt;
+      return escorteFold(txt, ctx);
     }
-    if (v.devenirGravite === "ua" && v.transportChoix === "vous") return label + " évacuée par nos soins";
+    if (v.devenirGravite === "ua" && v.transportChoix === "vous") return escorteFold(label + " évacuée par nos soins", ctx);
     if (v.devenirGravite === "dcd" && v.dispositionChoix === "police") {
       let txt = label + " décédée laissée à disposition de la police";
       if (svc.police.choix === "presente" && !svc.police.announcedBefore) {
@@ -1766,7 +1800,7 @@ const Renseignement = (function () {
   }
 
   function generateMessage() {
-    const ctx = { policeConsumed: false, eqMedConsumed: false };
+    const ctx = { policeConsumed: false, eqMedConsumed: false, escorteConsumed: false };
     const victimClauses = victimes.map((v, i) => victimClause(v, i, victimes.length, ctx)).filter(Boolean);
 
     const perimetreApplies = perimetre && moyensPublics.includes("police") && svc.police.choix === "presente";
@@ -1779,7 +1813,7 @@ const Renseignement = (function () {
     if (moyensPublics.includes("dirif") && svc.dirif.choix && !svc.dirif.announcedBefore) {
       parts.push(svc.dirif.choix === "presente" ? "DiRIF présenté" + (svc.dirif.heure ? " à " + svc.dirif.heure : "") : "DiRIF se présente");
     }
-    if (moyensPublics.includes("escorte") && svc.escorte.choix && !svc.escorte.announcedBefore) {
+    if (moyensPublics.includes("escorte") && svc.escorte.choix && !svc.escorte.announcedBefore && !ctx.escorteConsumed) {
       parts.push(svc.escorte.choix === "presente" ? "escorte motorisée présentée" + (svc.escorte.heure ? " à " + svc.escorte.heure : "") : "escorte motorisée se présente");
     }
     if (eqType === "civ" && svc.eqMed.choix && !svc.eqMed.announcedBefore && !ctx.eqMedConsumed) {
@@ -1814,37 +1848,49 @@ const Renseignement = (function () {
       hdr.appendChild(el("button", { class: "remove-link", text: "Retirer", onclick: () => { victimes.splice(index, 1); editedMessage = null; render(document.getElementById("app-root")); } }));
     }
     wrap.appendChild(hdr);
-    wrap.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Sexe" }));
-    const sexeGrid = el("div", { class: "row", style: "margin-bottom:12px" });
-    ["homme","femme"].forEach(s => {
-      const b = el("button", { class: "card card-half" + (v.sexe === s ? " active" : ""), text: s[0].toUpperCase() + s.slice(1) });
-      b.addEventListener("click", () => { v.sexe = s; editedMessage = null; render(document.getElementById("app-root")); });
-      sexeGrid.appendChild(b);
-    });
-    wrap.appendChild(sexeGrid);
-    wrap.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Statut particulier" }));
+
+    const sexeLabels = { homme: "Homme", femme: "Femme" };
+    const sexeToggle = el("button", { class: "victime-field-toggle", text: (v._sexeOpen ? "▾ " : "▸ ") + "Sexe : " + (sexeLabels[v.sexe] || "non renseigné") });
+    sexeToggle.addEventListener("click", () => { v._sexeOpen = !v._sexeOpen; render(document.getElementById("app-root")); });
+    wrap.appendChild(sexeToggle);
+    if (v._sexeOpen) {
+      const sexeGrid = el("div", { class: "row", style: "margin: 6px 0 12px" });
+      ["homme","femme"].forEach(s => {
+        const b = el("button", { class: "card card-half" + (v.sexe === s ? " active" : ""), text: s[0].toUpperCase() + s.slice(1) });
+        b.addEventListener("click", () => { v.sexe = s; editedMessage = null; render(document.getElementById("app-root")); });
+        sexeGrid.appendChild(b);
+      });
+      wrap.appendChild(sexeGrid);
+    }
+
     const statuts = [
       {id:"aucun",label:"Aucun"},{id:"enfant",label:"Enfant"},{id:"nourrisson",label:"Nourrisson"},
       {id:"militaireCorps",label:"Militaire du corps"},{id:"militaire",label:"Militaire"},{id:"policier",label:"Policier"}
     ];
-    const statutGrid = el("div", { class: "grid-2", style: "margin-bottom:8px" });
-    statuts.forEach(s => {
-      const b = el("button", { class: "card" + (v.statut === s.id ? " active" : ""), text: s.label });
-      b.style.marginBottom = "0";
-      b.addEventListener("click", () => { v.statut = s.id; if (!["militaireCorps","militaire","policier"].includes(s.id)) v.service = null; editedMessage = null; render(document.getElementById("app-root")); });
-      statutGrid.appendChild(b);
-    });
-    wrap.appendChild(statutGrid);
-    if (["militaireCorps","militaire","policier"].includes(v.statut)) {
-      const svcGrid = el("div", { class: "row", style: "margin-bottom:12px" });
-      const svcO = el("button", { class: "card card-half" + (v.service === true ? " active" : ""), text: "En position de service" });
-      svcO.addEventListener("click", () => { v.service = true; editedMessage = null; render(document.getElementById("app-root")); });
-      const svcN = el("button", { class: "card card-half" + (v.service === false ? " active" : ""), text: "En position de repos" });
-      svcN.addEventListener("click", () => { v.service = false; editedMessage = null; render(document.getElementById("app-root")); });
-      svcGrid.appendChild(svcO); svcGrid.appendChild(svcN);
-      wrap.appendChild(svcGrid);
+    const statutLabel = (statuts.find(s => s.id === v.statut) || statuts[0]).label;
+    const statutToggle = el("button", { class: "victime-field-toggle", text: (v._statutOpen ? "▾ " : "▸ ") + "Statut particulier : " + statutLabel });
+    statutToggle.addEventListener("click", () => { v._statutOpen = !v._statutOpen; render(document.getElementById("app-root")); });
+    wrap.appendChild(statutToggle);
+    if (v._statutOpen) {
+      const statutGrid = el("div", { class: "grid-2", style: "margin: 6px 0 8px" });
+      statuts.forEach(s => {
+        const b = el("button", { class: "card" + (v.statut === s.id ? " active" : ""), text: s.label });
+        b.style.marginBottom = "0";
+        b.addEventListener("click", () => { v.statut = s.id; if (!["militaireCorps","militaire","policier"].includes(s.id)) v.service = null; editedMessage = null; render(document.getElementById("app-root")); });
+        statutGrid.appendChild(b);
+      });
+      wrap.appendChild(statutGrid);
+      if (["militaireCorps","militaire","policier"].includes(v.statut)) {
+        const svcGrid = el("div", { class: "row", style: "margin-bottom:12px" });
+        const svcO = el("button", { class: "card card-half" + (v.service === true ? " active" : ""), text: "En position de service" });
+        svcO.addEventListener("click", () => { v.service = true; editedMessage = null; render(document.getElementById("app-root")); });
+        const svcN = el("button", { class: "card card-half" + (v.service === false ? " active" : ""), text: "En position de repos" });
+        svcN.addEventListener("click", () => { v.service = false; editedMessage = null; render(document.getElementById("app-root")); });
+        svcGrid.appendChild(svcO); svcGrid.appendChild(svcN);
+        wrap.appendChild(svcGrid);
+      }
     }
-    wrap.appendChild(el("div", { class: "note", style: "margin-top:0", text: "Devenir de la victime" }));
+    wrap.appendChild(el("div", { class: "note", style: "margin-top:8px", text: "Devenir de la victime" }));
     const devGrid = el("div", { class: "grid-2", style: "margin-bottom:8px" });
     [["","Pas déterminé"],["ua","Urgence absolue"],["ur","Urgence relative"],["dcd","Décédée"]].forEach(([id,label]) => {
       const val = id === "" ? null : id;
@@ -1925,7 +1971,7 @@ const Renseignement = (function () {
       root.appendChild(el("h2", { class: "section-title", text: "Victime(s)" }));
       victimes.forEach((v, i) => renderVictimeBlock(root, i));
       const addBtn = el("button", { class: "btn-dashed", text: "+ Ajouter une victime" });
-      addBtn.addEventListener("click", () => { victimes.push({ sexe: null, statut: "aucun", service: null, devenirGravite: null, transportChoix: null, dispositionChoix: null }); editedMessage = null; render(root); });
+      addBtn.addEventListener("click", () => { victimes.push({ sexe: null, statut: "aucun", service: null, devenirGravite: null, transportChoix: null, dispositionChoix: null, _sexeOpen: true, _statutOpen: true }); editedMessage = null; render(root); });
       root.appendChild(addBtn);
 
       const opBtn = el("button", { class: "card" + (operationTerminee ? " active" : ""), text: "Opération terminée", style: "margin-top:8px" });
